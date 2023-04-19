@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="generator" content="Docutils 0.16: http://docutils.sourceforge.net/" />
+<title>virkeycode-osx</title>
+
+</head>
+<body>
+<div class="document" id="virkeycode-osx">
+<h1 class="title">virkeycode-osx</h1>
+<p class="subtitle" id="key-code-values-for-osx">Key code values for osx</p>
+<dl class="docinfo simple">
+<dt class="manual-section">Manual section</dt>
+<dd class="manual-section"><p>7</p>
+</dd>
+<dt class="manual-group">Manual group</dt>
+<dd class="manual-group"><p>Virtualization Support</p>
+</dd>
+</dl>
+<!-- This file is auto-generated from keymaps.csv
+Database checksum sha256(17dc82ff9a58c779b5d25adc6ef862d26d92036498a7a0237af3128cb1890ee6)
+To re-generate, run:
+  keymap-gen code-docs - -lang=rst - -title=virkeycode-osx - -subtitle=Key code values for osx keymaps.csv osx -->
+<div class="section" id="description">
+<h1>DESCRIPTION</h1>
+<p>List of osx key code values, with corresponding osx key code names</p>
+<ul>
+<li><p>0 (0x0)</p>
+<p>Key name ANSI_A</p>
+</li>
+<li><p>1 (0x1)</p>
+<p>Key name ANSI_S</p>
+</li>
+<li><p>2 (0x2)</p>
+<p>Key name ANSI_D</p>
+</li>
+<li><p>3 (0x3)</p>
+<p>Key name ANSI_F</p>
+</li>
+<li><p>4 (0x4)</p>
+<p>Key name ANSI_H</p>
+</li>
+<li><p>5 (0x5)</p>
+<p>Key name ANSI_G</p>
+</li>
+<li><p>6 (0x6)</p>
+<p>Key name ANSI_Z</p>
+</li>
+<li><p>7 (0x7)</p>
+<p>Key name ANSI_X</p>
+</li>
+<li><p>8 (0x8)</p>
+<p>Key name ANSI_C</p>
+</li>
+<li><p>9 (0x9)</p>
+<p>Key name ANSI_V</p>
+</li>
+<li><p>10 (0xa)</p>
+<p>Key name ISO_Section</p>
+</li>
+<li><p>11 (0xb)</p>
+<p>Key name ANSI_B</p>
+</li>
+<li><p>12 (0xc)</p>
+<p>Key name ANSI_Q</p>
+</li>
+<li><p>13 (0xd)</p>
+<p>Key name ANSI_W</p>
+</li>
+<li><p>14 (0xe)</p>
+<p>Key name ANSI_E</p>
+</li>
+<li><p>15 (0xf)</p>
+<p>Key name ANSI_R</p>
+</li>
+<li><p>16 (0x10)</p>
+<p>Key name ANSI_Y</p>
+</li>
+<li><p>17 (0x11)</p>
+<p>Key name ANSI_T</p>
+</li>
+<li><p>18 (0x12)</p>
+<p>Key name ANSI_1</p>
+</li>
+<li><p>19 (0x13)</p>
+<p>Key name ANSI_2</p>
+</li>
+<li><p>20 (0x14)</p>
+<p>Key name ANSI_3</p>
+</li>
+<li><p>21 (0x15)</p>
+<p>Key name ANSI_4</p>
+</li>
+<li><p>22 (0x16)</p>
+<p>Key name ANSI_6</p>
+</li>
+<li><p>23 (0x17)</p>
+<p>Key name ANSI_5</p>
+</li>
+<li><p>24 (0x18)</p>
+<p>Key name ANSI_Equal</p>
+</li>
+<li><p>25 (0x19)</p>
+<p>Key name ANSI_9</p>
+</li>
+<li><p>26 (0x1a)</p>
+<p>Key name ANSI_7</p>
+</li>
+<li><p>27 (0x1b)</p>
+<p>Key name ANSI_Minus</p>
+</li>
+<li><p>28 (0x1c)</p>
+<p>Key name ANSI_8</p>
+</li>
+<li><p>29 (0x1d)</p>
+<p>Key name ANSI_0</p>
+</li>
+<li><p>30 (0x1e)</p>
+<p>Key name ANSI_RightBracket</p>
+</li>
+<li><p>31 (0x1f)</p>
+<p>Key name ANSI_O</p>
+</li>
+<li><p>32 (0x20)</p>
+<p>Key name ANSI_U</p>
+</li>
+<li><p>33 (0x21)</p>
+<p>Key name ANSI_LeftBracket</p>
+</li>
+<li><p>34 (0x22)</p>
+<p>Key name ANSI_I</p>
+</li>
+<li><p>35 (0x23)</p>
+<p>Key name ANSI_P</p>
+</li>
+<li><p>36 (0x24)</p>
+<p>Key name Return</p>
+</li>
+<li><p>37 (0x25)</p>
+<p>Key name ANSI_L</p>
+</li>
+<li><p>38 (0x26)</p>
+<p>Key name ANSI_J</p>
+</li>
+<li><p>39 (0x27)</p>
+<p>Key name ANSI_Quote</p>
+</li>
+<li><p>40 (0x28)</p>
+<p>Key name ANSI_K</p>
+</li>
+<li><p>41 (0x29)</p>
+<p>Key name ANSI_Semicolon</p>
+</li>
+<li><p>42 (0x2a)</p>
+<p>Key name ANSI_Backslash</p>
+</li>
+<li><p>43 (0x2b)</p>
+<p>Key name ANSI_Comma</p>
+</li>
+<li><p>44 (0x2c)</p>
+<p>Key name ANSI_Slash</p>
+</li>
+<li><p>45 (0x2d)</p>
+<p>Key name ANSI_N</p>
+</li>
+<li><p>46 (0x2e)</p>
+<p>Key name ANSI_M</p>
+</li>
+<li><p>47 (0x2f)</p>
+<p>Key name ANSI_Period</p>
+</li>
+<li><p>48 (0x30)</p>
+<p>Key name Tab</p>
+</li>
+<li><p>49 (0x31)</p>
+<p>Key name Space</p>
+</li>
+<li><p>50 (0x32)</p>
+<p>Key name ANSI_Grave</p>
+</li>
+<li><p>51 (0x33)</p>
+<p>Key name Delete</p>
+</li>
+<li><p>53 (0x35)</p>
+<p>Key name Escape</p>
+</li>
+<li><p>54 (0x36)</p>
+<p>Key name RightCommand</p>
+</li>
+<li><p>55 (0x37)</p>
+<p>Key name Command</p>
+</li>
+<li><p>56 (0x38)</p>
+<p>Key name Shift</p>
+</li>
+<li><p>57 (0x39)</p>
+<p>Key name CapsLock</p>
+</li>
+<li><p>58 (0x3a)</p>
+<p>Key name Option</p>
+</li>
+<li><p>59 (0x3b)</p>
+<p>Key name Control</p>
+</li>
+<li><p>60 (0x3c)</p>
+<p>Key name RightShift</p>
+</li>
+<li><p>61 (0x3d)</p>
+<p>Key name RightOption</p>
+</li>
+<li><p>62 (0x3e)</p>
+<p>Key name RightControl</p>
+</li>
+<li><p>63 (0x3f)</p>
+<p>Key name Function</p>
+</li>
+<li><p>64 (0x40)</p>
+<p>Key name F17</p>
+</li>
+<li><p>65 (0x41)</p>
+<p>Key name ANSI_KeypadDecimal</p>
+</li>
+<li><p>67 (0x43)</p>
+<p>Key name ANSI_KeypadMultiply</p>
+</li>
+<li><p>69 (0x45)</p>
+<p>Key name ANSI_KeypadPlus</p>
+</li>
+<li><p>71 (0x47)</p>
+<p>Key name ANSI_KeypadClear</p>
+</li>
+<li><p>72 (0x48)</p>
+<p>Key name VolumeUp</p>
+</li>
+<li><p>73 (0x49)</p>
+<p>Key name VolumeDown</p>
+</li>
+<li><p>74 (0x4a)</p>
+<p>Key name Mute</p>
+</li>
+<li><p>75 (0x4b)</p>
+<p>Key name ANSI_KeypadDivide</p>
+</li>
+<li><p>76 (0x4c)</p>
+<p>Key name ANSI_KeypadEnter</p>
+</li>
+<li><p>78 (0x4e)</p>
+<p>Key name ANSI_KeypadMinus</p>
+</li>
+<li><p>79 (0x4f)</p>
+<p>Key name F18</p>
+</li>
+<li><p>80 (0x50)</p>
+<p>Key name F19</p>
+</li>
+<li><p>81 (0x51)</p>
+<p>Key name ANSI_KeypadEquals</p>
+</li>
+<li><p>82 (0x52)</p>
+<p>Key name ANSI_Keypad0</p>
+</li>
+<li><p>83 (0x53)</p>
+<p>Key name ANSI_Keypad1</p>
+</li>
+<li><p>84 (0x54)</p>
+<p>Key name ANSI_Keypad2</p>
+</li>
+<li><p>85 (0x55)</p>
+<p>Key name ANSI_Keypad3</p>
+</li>
+<li><p>86 (0x56)</p>
+<p>Key name ANSI_Keypad4</p>
+</li>
+<li><p>87 (0x57)</p>
+<p>Key name ANSI_Keypad5</p>
+</li>
+<li><p>88 (0x58)</p>
+<p>Key name ANSI_Keypad6</p>
+</li>
+<li><p>89 (0x59)</p>
+<p>Key name ANSI_Keypad7</p>
+</li>
+<li><p>90 (0x5a)</p>
+<p>Key name F20</p>
+</li>
+<li><p>91 (0x5b)</p>
+<p>Key name ANSI_Keypad8</p>
+</li>
+<li><p>92 (0x5c)</p>
+<p>Key name ANSI_Keypad9</p>
+</li>
+<li><p>93 (0x5d)</p>
+<p>Key name JIS_Yen</p>
+</li>
+<li><p>94 (0x5e)</p>
+<p>Key name JIS_Underscore</p>
+</li>
+<li><p>95 (0x5f)</p>
+<p>Key name JIS_KeypadComma</p>
+</li>
+<li><p>96 (0x60)</p>
+<p>Key name F5</p>
+</li>
+<li><p>97 (0x61)</p>
+<p>Key name F6</p>
+</li>
+<li><p>98 (0x62)</p>
+<p>Key name F7</p>
+</li>
+<li><p>99 (0x63)</p>
+<p>Key name F3</p>
+</li>
+<li><p>100 (0x64)</p>
+<p>Key name F8</p>
+</li>
+<li><p>101 (0x65)</p>
+<p>Key name F9</p>
+</li>
+<li><p>102 (0x66)</p>
+<p>Key name JIS_Eisu</p>
+</li>
+<li><p>103 (0x67)</p>
+<p>Key name F11</p>
+</li>
+<li><p>104 (0x68)</p>
+<p>Key name JIS_Kana</p>
+</li>
+<li><p>105 (0x69)</p>
+<p>Key name F13</p>
+</li>
+<li><p>106 (0x6a)</p>
+<p>Key name F16</p>
+</li>
+<li><p>107 (0x6b)</p>
+<p>Key name F14</p>
+</li>
+<li><p>109 (0x6d)</p>
+<p>Key name F10</p>
+</li>
+<li><p>110 (0x6e)</p>
+<p>Key name unnamed</p>
+</li>
+<li><p>111 (0x6f)</p>
+<p>Key name F12</p>
+</li>
+<li><p>113 (0x71)</p>
+<p>Key name F15</p>
+</li>
+<li><p>114 (0x72)</p>
+<p>Key name Help</p>
+</li>
+<li><p>115 (0x73)</p>
+<p>Key name Home</p>
+</li>
+<li><p>116 (0x74)</p>
+<p>Key name PageUp</p>
+</li>
+<li><p>117 (0x75)</p>
+<p>Key name ForwardDelete</p>
+</li>
+<li><p>118 (0x76)</p>
+<p>Key name F4</p>
+</li>
+<li><p>119 (0x77)</p>
+<p>Key name End</p>
+</li>
+<li><p>120 (0x78)</p>
+<p>Key name F2</p>
+</li>
+<li><p>121 (0x79)</p>
+<p>Key name PageDown</p>
+</li>
+<li><p>122 (0x7a)</p>
+<p>Key name F1</p>
+</li>
+<li><p>123 (0x7b)</p>
+<p>Key name LeftArrow</p>
+</li>
+<li><p>124 (0x7c)</p>
+<p>Key name RightArrow</p>
+</li>
+<li><p>125 (0x7d)</p>
+<p>Key name DownArrow</p>
+</li>
+<li><p>126 (0x7e)</p>
+<p>Key name UpArrow</p>
+</li>
+<li><p>255 (0xff)</p>
+<p>Key name unnamed</p>
+</li>
+</ul>
+</div>
+</div>
+</body>
+</html>

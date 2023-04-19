@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="generator" content="Docutils 0.16: http://docutils.sourceforge.net/" />
+<title>QEMU event handlers</title>
+
+</head>
+<body>
+<div class="document" id="qemu-event-handlers">
+<h1 class="title">QEMU event handlers</h1>
+
+<p>This is a short description of how an example qemu event can be used
+to trigger handler code that is called from the context of a worker
+thread, rather than directly from the event thread (which should
+itself never block, and can't do things like send qemu monitor
+commands, etc).</p>
+<p>In this case (the <span class="docutils literal">NIC_RX_FILTER_CHANGED</span> event) the event is handled by
+calling a qemu monitor command to get the current RX filter state,
+then executing ioctls/sending netlink messages on the host in response
+to changes in that filter state. This event is <em>not</em> propagated to the
+libvirt API (but if someone wants to add details of how to handle that
+to the end of this document, please do!).</p>
+<p>Hopefully this narration will be helpful when adding handlers for
+other qemu events in the future.</p>
+<div class="section" id="qemu-monitor-events">
+<h1>QEMU monitor events</h1>
+<p>Any event emitted by qemu is received by
+<span class="docutils literal">qemu_monitor_json.c:qemuMonitorJSONIOProcessEvent()</span>. It looks up the
+event by name in the table <span class="docutils literal">eventHandlers</span> (in the same file), which
+should have an entry like this for each event that libvirt
+understands:</p>
+<pre class="literal-block">{ &quot;NIC_RX_FILTER_CHANGED&quot;, qemuMonitorJSONHandleNicRxFilterChanged, },</pre>
+<p>NB: This table is searched with bsearch, so it <em>must</em> be alphabetically sorted.</p>
+<p><span class="docutils literal">qemuMonitorJSONIOProcessEvent</span> calls the function listed in
+<span class="docutils literal">eventHandlers</span>, e.g.:</p>
+<pre class="literal-block">qemu_monitor_json.c:qemuMonitorJSONHandleNicRxFilterChanged()</pre>
+<p>which extracts any required data from the JSON (&quot;name&quot; in this case),
+and calls:</p>
+<pre class="literal-block">qemu_monitor.c:qemuMonitorEmitNicRxFilterChanged()</pre>
+<p>which uses <span class="docutils literal">QEMU_MONITOR_CALLBACK()</span> to call
+<span class="docutils literal"><span class="pre">mon-&gt;cb-&gt;domainNicRxFilterChanged()</span></span>. <span class="docutils literal">domainNicRxFilterChanged</span> is one
+in a list of function pointers in <span class="docutils literal">qemu_process.c:monitorCallbacks</span>. For
+our example, it has been set to:</p>
+<pre class="literal-block">qemuProcessHandleNicRxFilterChanged()</pre>
+<p>This function allocates a <span class="docutils literal">qemuProcessEvent</span> object, and queues an event
+named <span class="docutils literal">QEMU_PROCESS_EVENT_NIC_RX_FILTER_CHANGED</span> (you'll want to add an
+enum to <span class="docutils literal">qemu_domain.h:qemuProcessEventType</span> for your event) for a
+worker thread to handle.</p>
+<p>(Everything up to this point has happened in the context of the thread
+that is reading events from qemu, so it should do as little as
+possible, never block, and never call back into the qemu
+monitor. Everything after this is handled in the context of a worker
+thread, so it has more freedom to make qemu monitor calls and blocking
+system calls on the host.)</p>
+<p>When the worker thread gets the event, it calls:</p>
+<pre class="literal-block">qemuProcessEventHandler()</pre>
+<p>which switches on the eventType (in our example,
+<span class="docutils literal">QEMU_PROCESS_EVENT_NIC_RX_FILTER_CHANGED</span>) and decides to call:</p>
+<pre class="literal-block">processNicRxFilterChangedEvent()</pre>
+<p>and <em>that</em> is where the actual work will be done (and any
+event-specific memory allocated during <span class="docutils literal">qemuProcessHandleXXX()</span> will be
+freed). Note that this function must do proper refcounting of the
+domain object, and assure that the domain is still active prior to
+performing any operations - it is possible that the domain could have
+been destroyed between the time the event was received and the time
+that it is processed, and it is also possible that the domain could be
+destroyed <em>during</em> the event processing if it doesn't get properly
+referenced by the handler.</p>
+</div>
+</div>
+</body>
+</html>

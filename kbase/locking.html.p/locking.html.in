@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="generator" content="Docutils 0.16: http://docutils.sourceforge.net/" />
+<title>Virtual machine lock manager</title>
+
+</head>
+<body>
+<div class="document" id="virtual-machine-lock-manager">
+<h1 class="title">Virtual machine lock manager</h1>
+
+<p>Libvirt includes a framework for ensuring mutual exclusion between
+virtual machines using host resources. Typically this is used to prevent
+two VM processes from having concurrent write access to the same disk
+image, as this would result in data corruption if the guest was not
+using a cluster aware filesystem.</p>
+<div class="section" id="lock-manager-plugins">
+<h1>Lock manager plugins</h1>
+<p>The lock manager framework has a pluggable architecture, to allow
+different locking technologies to be used.</p>
+<dl class="simple">
+<dt>nop</dt>
+<dd><p>This is a &quot;no op&quot; implementation which does absolutely nothing. This
+can be used if mutual exclusion between virtual machines is not
+required, or if it is being solved at another level in the management
+stack.</p>
+</dd>
+<dt><a class="reference external" href="locking-lockd.html">lockd</a></dt>
+<dd><p>This is the current preferred implementation shipped with libvirt. It
+uses the <span class="docutils literal">virtlockd</span> daemon to manage locks using the POSIX fcntl()
+advisory locking capability. As such it requires a shared filesystem
+of some kind be accessible to all hosts which share the same image
+storage.</p>
+</dd>
+<dt><a class="reference external" href="locking-sanlock.html">sanlock</a></dt>
+<dd><p>This is an alternative implementation preferred by the oVirt project.
+It uses a disk paxos algorithm for maintaining continuously renewed
+leases. In the default setup it requires some shared filesystem, but
+it is possible to use it in a manual mode where the management
+application creates leases in SAN storage volumes.</p>
+</dd>
+</dl>
+</div>
+</div>
+</body>
+</html>

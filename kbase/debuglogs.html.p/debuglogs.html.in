@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="generator" content="Docutils 0.16: http://docutils.sourceforge.net/" />
+<title>Debug Logs</title>
+
+</head>
+<body>
+<div class="document" id="debug-logs">
+<h1 class="title">Debug Logs</h1>
+
+<div class="contents topic" id="contents">
+<p class="topic-title">Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#turning-on-debug-logs" id="id1">Turning on debug logs</a></p></li>
+<li><p><a class="reference internal" href="#logging-settings-in-libvirt" id="id2">Logging settings in libvirt</a></p>
+<ul>
+<li><p><a class="reference internal" href="#log-levels" id="id3">Log levels</a></p></li>
+<li><p><a class="reference internal" href="#log-outputs" id="id4">Log outputs</a></p></li>
+<li><p><a class="reference internal" href="#log-filters" id="id5">Log filters</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#libvirt-daemons-logging-configuration" id="id6">Libvirt daemons logging configuration</a></p>
+<ul>
+<li><p><a class="reference internal" href="#session-vs-system-daemons" id="id7">Session vs system daemons</a></p>
+<ul>
+<li><p><a class="reference internal" href="#system-daemon-mode" id="id8">System daemon mode</a></p></li>
+<li><p><a class="reference internal" href="#session-daemon-mode" id="id9">Session daemon mode</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#modular-vs-monolithic-daemons" id="id10">Modular vs. monolithic daemons</a></p>
+<ul>
+<li><p><a class="reference internal" href="#modular-daemons" id="id11">Modular daemons</a></p></li>
+<li><p><a class="reference internal" href="#monolithic-daemon" id="id12">Monolithic daemon</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#persistent-setting" id="id13">Persistent setting</a></p></li>
+<li><p><a class="reference internal" href="#runtime-setting" id="id14">Runtime setting</a></p>
+<ul>
+<li><p><a class="reference internal" href="#removing-filters-and-outputs" id="id15">Removing filters and outputs</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#legacy-pre-4-4-0-libvirt-daemon-logging-configuration" id="id16">Legacy (pre-4.4.0) libvirt daemon logging configuration</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#client-library-logging" id="id17">Client library logging</a></p></li>
+<li><p><a class="reference internal" href="#what-to-attach" id="id18">What to attach?</a></p></li>
+<li><p><a class="reference internal" href="#example-filter-settings" id="id19">Example filter settings</a></p>
+<ul>
+<li><p><a class="reference internal" href="#targeted-logging-for-debugging-qemu-vms" id="id20">Targeted logging for debugging QEMU VMs</a></p></li>
+<li><p><a class="reference internal" href="#less-verbose-logging-for-qemu-vms" id="id21">Less verbose logging for QEMU VMs</a></p></li>
+<li><p><a class="reference internal" href="#minimalistic-qemu-qmp-monitor-logging" id="id22">Minimalistic QEMU QMP monitor logging</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#sensitive-information-in-debug-logs" id="id23">Sensitive information in debug logs</a></p></li>
+</ul>
+</div>
+<div class="section" id="turning-on-debug-logs">
+<h1><a class="toc-backref" href="#id1">Turning on debug logs</a></h1>
+<p>If you <a class="reference external" href="https://gitlab.com/libvirt/libvirt/-/issues/new">report a bug</a>
+against libvirt, in most cases you will be asked to attach debug logs. These
+are bare text files which tracks transition between different states of
+libvirtd, what it has tried to achieve, etc. Because of client -- server schema
+used in libvirt, the logs can be either client or server too. Usually, it's
+server side that matters as nearly all interesting work takes place there.
+Moreover, libvirt catches stderr of all running domains. These can be useful as
+well.</p>
+</div>
+<div class="section" id="logging-settings-in-libvirt">
+<h1><a class="toc-backref" href="#id2">Logging settings in libvirt</a></h1>
+<div class="section" id="log-levels">
+<h2><a class="toc-backref" href="#id3">Log levels</a></h2>
+<p>Libvirt log messages are classified into 4 priority levels; the higher the
+priority level, the less is the volume of produced messages.</p>
+<p>The log level setting is controlled by the <span class="docutils literal">log_filters</span> and <span class="docutils literal">log_outputs</span>
+settings explained in the <a class="reference internal" href="#log-outputs">Log outputs</a> and <a class="reference internal" href="#log-filters">Log filters</a> sections
+respectively.</p>
+<blockquote>
+<ul class="simple">
+<li><p><span class="docutils literal">1: DEBUG</span></p></li>
+<li><p><span class="docutils literal">2: INFO</span></p></li>
+<li><p><span class="docutils literal">3: WARNING</span></p></li>
+<li><p><span class="docutils literal">4: ERROR</span></p></li>
+</ul>
+</blockquote>
+<p>For debugging it's necessary to capture the <span class="docutils literal">DEBUG</span> level entries as the name
+implies.</p>
+</div>
+<div class="section" id="log-outputs">
+<h2><a class="toc-backref" href="#id4">Log outputs</a></h2>
+<p>Log outputs describe where the log messages are being recorded. The outputs
+are described by a space-separated list of tuples in the following format:</p>
+<pre class="literal-block">level:output</pre>
+<p><span class="docutils literal">level</span> refers to the minimum priority level of entries recorded in the output.</p>
+<p><span class="docutils literal">output</span> is one of the following:</p>
+<blockquote>
+<dl class="simple">
+<dt><span class="docutils literal">file:FILENAME</span></dt>
+<dd><p>Logging messages are appended to FILENAME.</p>
+</dd>
+<dt><span class="docutils literal">journald</span></dt>
+<dd><p>Logging goes to the <span class="docutils literal">journald</span> logging daemon.</p>
+</dd>
+<dt><span class="docutils literal">stderr</span></dt>
+<dd><p>Logging goes to the standard error output stream of the libvirt daemon.</p>
+</dd>
+<dt><span class="docutils literal">syslog:name</span></dt>
+<dd><p>Logging goes to syslogd. <span class="docutils literal">name</span> is used to identify the entries.</p>
+</dd>
+</dl>
+</blockquote>
+<p>The default output on systems running <span class="docutils literal">journald</span> is <span class="docutils literal">3:journald</span>. Note that
+<span class="docutils literal">journald</span> can throttle the amount of logs per process so in order to capture
+debug logs of a libvirt daemon should go to a file instead (in addition to
+theoriginal logging daemon), e.g.:</p>
+<pre class="literal-block">&quot;1:file:/var/log/libvirt/libvirtd.log 3:journald&quot;</pre>
+</div>
+<div class="section" id="log-filters">
+<h2><a class="toc-backref" href="#id5">Log filters</a></h2>
+<p>Log filters, as the name suggest, help filtering out messages which are
+irrelevant to the cause.  The log filters is a space-separated list of tuples
+list of tuples using the <span class="docutils literal">level:identifier</span> format. Each filter defined this
+way will then limit messages coming from a module matching the <span class="docutils literal">identifier</span>
+pattern (accepts globs too) to the given <span class="docutils literal">level</span>.&quot;</p>
+<p>As <span class="docutils literal">identifier</span> is based on internal naming of modules, preferred way of
+configuring your filters is to start with the <a class="reference internal" href="#example-filter-settings">Example filter settings</a>.</p>
+<p>The rule of thumb here is to have more logs rather than less and miss something
+important.</p>
+</div>
+</div>
+<div class="section" id="libvirt-daemons-logging-configuration">
+<h1><a class="toc-backref" href="#id6">Libvirt daemons logging configuration</a></h1>
+<p>Libvirt daemons can be configured either via a config file or via the
+administration API. The configuration location depends on multiple factors.</p>
+<div class="section" id="session-vs-system-daemons">
+<h2><a class="toc-backref" href="#id7">Session vs system daemons</a></h2>
+<p>Libvirt daemons run either in the <span class="docutils literal">system</span> mode or on <span class="docutils literal">session</span> (user)
+mode, depending on the configuration of the host and available permission
+levels.</p>
+<p>The <a class="reference external" href="https://libvirt.org/uri.html">connection URI</a> influences which daemon
+the client will communicate with.</p>
+<div class="section" id="system-daemon-mode">
+<h3><a class="toc-backref" href="#id8">System daemon mode</a></h3>
+<blockquote>
+<ul class="simple">
+<li><p>all connection URIs end in <span class="docutils literal">/system</span> e.g. <span class="docutils literal"><span class="pre">qemu:///system</span></span></p></li>
+<li><p>config files are usually placed in <span class="docutils literal">/etc/libvirt</span></p></li>
+</ul>
+</blockquote>
+</div>
+<div class="section" id="session-daemon-mode">
+<h3><a class="toc-backref" href="#id9">Session daemon mode</a></h3>
+<blockquote>
+<ul class="simple">
+<li><p>connection URIs end in <span class="docutils literal">/session</span></p></li>
+<li><p>config files are usually placed in <span class="docutils literal">$XDG_CONFIG_HOME/libvirt/</span> directory</p></li>
+</ul>
+</blockquote>
+</div>
+</div>
+<div class="section" id="modular-vs-monolithic-daemons">
+<h2><a class="toc-backref" href="#id10">Modular vs. monolithic daemons</a></h2>
+<p>While there is only a single 'libvirtd.conf' configuration file in case of the
+monolithic daemon setup, each of the modular daemons has their own
+configuration file giving you a lot of possibilities how to configure them
+individually including logging. Realistically though, logging will have to be
+configured only for a single or a couple of daemons in case debug logs are
+requested.</p>
+<p>Refer to <a class="reference external" href="../daemons.html#checking-whether-modular-monolithic-mode-is-in-use">documentation about daemons</a>
+to figure out which is in use by your system.</p>
+<div class="section" id="modular-daemons">
+<h3><a class="toc-backref" href="#id11">Modular daemons</a></h3>
+<p>The configuration of modular daemons is in file named after the daemon. E.g.
+for <span class="docutils literal"><span class="pre">qemu:///system</span></span> connection this is the <span class="docutils literal">virtqemud</span> daemon and
+correspondingly:</p>
+<blockquote>
+<ul class="simple">
+<li><p><span class="docutils literal">virtqemud.conf</span> config file is used</p></li>
+<li><p><span class="docutils literal"><span class="pre">virtqemud:///system</span></span> or <span class="docutils literal"><span class="pre">virtqemud:///session</span></span> admin URI is used</p></li>
+</ul>
+</blockquote>
+</div>
+<div class="section" id="monolithic-daemon">
+<h3><a class="toc-backref" href="#id12">Monolithic daemon</a></h3>
+<blockquote>
+<ul class="simple">
+<li><p><span class="docutils literal">libvirtd.conf</span> config file is used</p></li>
+<li><p><span class="docutils literal"><span class="pre">libvirtd:///system</span></span> or <span class="docutils literal"><span class="pre">libvirtd:///session</span></span> admin URI is used
+when the modular qemu hypervisor driver <span class="docutils literal">virtqemud</span></p></li>
+</ul>
+</blockquote>
+</div>
+</div>
+<div class="section" id="persistent-setting">
+<h2><a class="toc-backref" href="#id13">Persistent setting</a></h2>
+<p>In order to setup libvirt logging persistently, follow the steps below:</p>
+<ul>
+<li><p>open the appropriate daemon config file in your favourite editor</p>
+<pre class="literal-block">/etc/libvirt/virtqemud.conf
+/etc/libvirt/libvirtd.conf
+$XDG_CONFIG_HOME/libvirt/libvirtd.conf
+$XDG_CONFIG_HOME/libvirt/virtqemud.conf</pre>
+</li>
+<li><p>find &amp; replace, or set the appropriate <a class="reference internal" href="#log-outputs">Log outputs</a> and <a class="reference internal" href="#log-filters">Log filters</a>, e.g</p>
+<pre class="literal-block">log_filters=&quot;3:remote 4:event 3:util.json 3:rpc 1:*&quot;
+log_outputs=&quot;1:file:/var/log/libvirt/libvirtd.log&quot;</pre>
+</li>
+<li><p>save and exit</p></li>
+<li><p>restart the corresponding service/daemon e.g.</p>
+<pre class="literal-block">systemctl restart virtqemud.socket
+systemctl restart libvirtd.socket
+systemctl restart libvirtd.service</pre>
+</li>
+</ul>
+<p><em>Note:</em> Libvirt prior to the <span class="docutils literal"><span class="pre">libvirt-4.4.0</span></span> release didn't support globbing
+patterns and thus requires more configuration. See
+<a class="reference internal" href="#legacy-pre-4-4-0-libvirt-daemon-logging-configuration">Legacy (pre-4.4.0) libvirt daemon logging configuration</a>.</p>
+</div>
+<div class="section" id="runtime-setting">
+<h2><a class="toc-backref" href="#id14">Runtime setting</a></h2>
+<p>Debugging anomalies can be very painful, especially when trying to reproduce it
+after the daemon restarts, since the new session can make the anomaly
+&quot;disappear&quot;. Therefore, it's possible to enable the debug logs during runtime
+using libvirt administration API. To use it conveniently, there's the
+<span class="docutils literal"><span class="pre">virt-admin</span></span> client provided by the <span class="docutils literal"><span class="pre">libvirt-admin</span></span> package. Use the
+package manager provided by your distribution to install this package.</p>
+<p><strong>Important</strong>: Substitute <span class="docutils literal"><span class="pre">virt-admin</span> <span class="pre">-c</span> $ADMIN_URI</span> according to the
+guideline in the sections above in place of <span class="docutils literal"><span class="pre">virt-admin</span></span> in the examples
+below if needed.</p>
+<p>The following command allows to query the list of currently active log filters:</p>
+<pre class="literal-block"># virt-admin daemon-log-filters
+ Logging filters: 3:remote 4:util.json 4:rpc</pre>
+<p>In order to change this set, run the same command as root, this time with your
+own set of filters:</p>
+<pre class="literal-block"># virt-admin daemon-log-filters &quot;3:remote 4:util.json 4:rpc 1:*&quot;</pre>
+<p>Analogically, the same procedure can be performed with log outputs:</p>
+<pre class="literal-block"># virt-admin daemon-log-outputs
+ Logging outputs: 3:syslog:libvirtd
+# virt-admin daemon-log-outputs &quot;1:file:/var/log/libvirt/libvirtd.log&quot;</pre>
+<p>NOTE: It's always good practice to return the settings to the original state
+once you're finished debugging, just remember to save the original sets of
+filters and outputs and restore them at the end the same way as described above.</p>
+<div class="section" id="removing-filters-and-outputs">
+<h3><a class="toc-backref" href="#id15">Removing filters and outputs</a></h3>
+<p>It's also possible to remove all the filters and produce an enormous log file,
+but it is not recommended since some of libvirt's modules can produce a large
+amount of noise. However, should you really want to do this, you can specify an
+empty set of filters:</p>
+<pre class="literal-block"># virt-admin daemon-log-filters &quot;&quot;
+ Logging filters:</pre>
+<p>The situation is a bit different with outputs, since libvirt always has to log
+somewhere and resetting the outputs to an empty set will restore the default
+setting which depends on the host configuration, <em>journald</em> in our case:</p>
+<pre class="literal-block"># virt-admin daemon-log-outputs
+ Logging outputs: 1:file:/var/log/libvirt/libvirtd.log
+# virt-admin daemon-log-outputs &quot;&quot;
+ Logging outputs: 2:journald</pre>
+</div>
+</div>
+<div class="section" id="legacy-pre-4-4-0-libvirt-daemon-logging-configuration">
+<h2><a class="toc-backref" href="#id16">Legacy (pre-4.4.0) libvirt daemon logging configuration</a></h2>
+<p>Old libvirt versions didn't support globbing (e.g. <span class="docutils literal">1:*</span>) to configure
+logging, thus it's required to explicitly set logging level to 1 (debug level)
+with the <span class="docutils literal">log_level</span> setting and then filter out the noise with a tailored log
+<span class="docutils literal">log_filters</span> string.</p>
+<pre class="literal-block"># LEGACY SETTINGS PRIOR LIBVIRT 4.4.0
+log_level = 1
+log_filters=&quot;1:qemu 3:remote 4:event 3:util.json 3:rpc&quot;
+log_outputs=&quot;1:file:/var/log/libvirt/libvirtd.log&quot;</pre>
+<p>Or using <span class="docutils literal"><span class="pre">virt-admin</span></span>:</p>
+<pre class="literal-block">## LEGACY APPROACH ENUMERATING ALL THE DESIRED MODULES ##
+# virt-admin daemon-log-filters &quot;1:util 1:libvirt 1:storage 1:network 1:nodedev 1:qemu&quot;</pre>
+</div>
+</div>
+<div class="section" id="client-library-logging">
+<h1><a class="toc-backref" href="#id17">Client library logging</a></h1>
+<p>By default the client library doesn't produce any logs and usually usually it's
+not very interesting on its own anyway.</p>
+<p>In case you want to get the client logs, logging is controlled via the
+<span class="docutils literal">LIBVIRT_LOG_OUTPUTS</span> and <span class="docutils literal">LIBVIRT_LOG_FILTERS</span> environment variables.
+Generally when client logs are needed make sure you don't filter them:</p>
+<pre class="literal-block">export LIBVIRT_LOG_OUTPUTS=&quot;1:file:/tmp/libvirt_client.log&quot;</pre>
+</div>
+<div class="section" id="what-to-attach">
+<h1><a class="toc-backref" href="#id18">What to attach?</a></h1>
+<p>Now you should go and reproduce the bug. Once you're finished, attach:</p>
+<ul class="simple">
+<li><p><span class="docutils literal">/var/log/libvirt/libvirtd.log</span> or whatever path you set for the daemon
+logs.</p></li>
+<li><p>If the problem is related to a domain named <span class="docutils literal">$dom</span> attach:</p>
+<ul>
+<li><p><span class="docutils literal"><span class="pre">/var/log/libvirt/qemu/$dom.log</span></span> (Or substitute <span class="docutils literal">qemu</span> with whatever
+hypervisor you are using.)</p></li>
+<li><p>The XML configuration of the vm/domain obtained by <span class="docutils literal">virsh dumpxml $dom</span></p></li>
+</ul>
+</li>
+<li><p>If the problem involves a crash of <span class="docutils literal">libvirtd</span> or any other component, also
+attach the backtrace from the core dump if possible (e.g. using
+<span class="docutils literal">coredumpctl</span>).</p></li>
+<li><p>If you are asked for client logs, <span class="docutils literal">/tmp/libvirt_client.log</span>.</p></li>
+<li><p>Ideally don't tear down the environment in case additional information is
+required.</p></li>
+<li><p>Consider whether you view any of the information in the debug logs
+sensitive: <a class="reference internal" href="#sensitive-information-in-debug-logs">Sensitive information in debug logs</a>.</p></li>
+</ul>
+</div>
+<div class="section" id="example-filter-settings">
+<h1><a class="toc-backref" href="#id19">Example filter settings</a></h1>
+<p>Some filter setting suggestions for debugging more specific things. Unless it's
+explicitly stated, these work on libvirt 4.4.0 and later. Please note that some
+of the filters below may not log enough information for filing a proper libvirt
+bug. Usually it's better to log more than less.</p>
+<div class="section" id="targeted-logging-for-debugging-qemu-vms">
+<h2><a class="toc-backref" href="#id20">Targeted logging for debugging QEMU VMs</a></h2>
+<p>Specifying only some sections allows for a targeted filter configuration which
+works on all versions and is sufficient for most cases.</p>
+<pre class="literal-block">1:libvirt 1:qemu 1:conf 1:security 3:event 3:json 3:file 3:object 1:util</pre>
+</div>
+<div class="section" id="less-verbose-logging-for-qemu-vms">
+<h2><a class="toc-backref" href="#id21">Less verbose logging for QEMU VMs</a></h2>
+<p>Some subsystems are very noisy and usually not the culprit of the problems. They
+can be silenced individually for a less verbose log while still logging
+everything else. Usual suspects are the JSON code, RPC, authentication and such.
+A permissive filter is good for development use cases.</p>
+<pre class="literal-block">3:remote 4:event 3:util.json 3:util.object 3:util.dbus 3:util.netlink 3:node_device 3:rpc 3:access 1:*</pre>
+</div>
+<div class="section" id="minimalistic-qemu-qmp-monitor-logging">
+<h2><a class="toc-backref" href="#id22">Minimalistic QEMU QMP monitor logging</a></h2>
+<p>This filter logs only QMP traffic and skips most of libvirt's messages.</p>
+<pre class="literal-block">2:qemu.qemu_monitor 3:*</pre>
+</div>
+</div>
+<div class="section" id="sensitive-information-in-debug-logs">
+<h1><a class="toc-backref" href="#id23">Sensitive information in debug logs</a></h1>
+<p>Debug logs may contain information that certain users may consider sensitive
+although generally it's okay to share debuglogs publicly.</p>
+<p>Information which could be deemed sensitive:</p>
+<blockquote>
+<ul class="simple">
+<li><p>hostname of the host</p></li>
+<li><p>names of VMs and other objects</p></li>
+<li><p>paths to disk images</p></li>
+<li><p>IP addresses of guests and the host</p></li>
+<li><p>hostnames/IP addresses of disks accessed via network</p></li>
+</ul>
+</blockquote>
+<p>Libvirt's debug logs only ever have passwords and disk encryption secrets in
+encrypted form without the key being part of the log. There's one notable
+exception, that <span class="docutils literal">VNC/SPICE</span> passwords can be found in the logs.</p>
+<p>In case you decide to mask information you consider sensitive from the posted
+debug logs, make sure that the masking doesn't introduce ambiguity.</p>
+</div>
+</div>
+</body>
+</html>

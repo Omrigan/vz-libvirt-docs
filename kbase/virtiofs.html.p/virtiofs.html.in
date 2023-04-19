@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="generator" content="Docutils 0.16: http://docutils.sourceforge.net/" />
+<title>Sharing files with Virtiofs</title>
+
+</head>
+<body>
+<div class="document" id="sharing-files-with-virtiofs">
+<h1 class="title">Sharing files with Virtiofs</h1>
+
+<div class="contents topic" id="contents">
+<p class="topic-title">Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#virtiofs" id="id1">Virtiofs</a></p></li>
+<li><p><a class="reference internal" href="#sharing-a-host-directory-with-a-guest" id="id2">Sharing a host directory with a guest</a></p></li>
+<li><p><a class="reference internal" href="#optional-parameters" id="id3">Optional parameters</a></p></li>
+<li><p><a class="reference internal" href="#externally-launched-virtiofsd" id="id4">Externally-launched virtiofsd</a></p></li>
+<li><p><a class="reference internal" href="#other-options-for-vhost-user-memory-setup" id="id5">Other options for vhost-user memory setup</a></p></li>
+</ul>
+</div>
+<div class="section" id="virtiofs">
+<h1><a class="toc-backref" href="#id1">Virtiofs</a></h1>
+<p>Virtiofs is a shared file system that lets virtual machines access
+a directory tree on the host. Unlike existing approaches, it
+is designed to offer local file system semantics and performance.</p>
+<p>See <a class="reference external" href="https://virtio-fs.gitlab.io/">https://virtio-fs.gitlab.io/</a></p>
+</div>
+<div class="section" id="sharing-a-host-directory-with-a-guest">
+<h1><a class="toc-backref" href="#id2">Sharing a host directory with a guest</a></h1>
+<ol class="arabic">
+<li><p>Add the following domain XML elements to share the host directory <cite>/path</cite>
+with the guest</p>
+<pre class="literal-block">&lt;domain&gt;
+  ...
+  &lt;memoryBacking&gt;
+    &lt;source type='memfd'/&gt;
+    &lt;access mode='shared'/&gt;
+  &lt;/memoryBacking&gt;
+  ...
+  &lt;devices&gt;
+    ...
+    &lt;filesystem type='mount' accessmode='passthrough'&gt;
+      &lt;driver type='virtiofs'/&gt;
+      &lt;source dir='/path'/&gt;
+      &lt;target dir='mount_tag'/&gt;
+    &lt;/filesystem&gt;
+    ...
+  &lt;/devices&gt;
+&lt;/domain&gt;</pre>
+<p>Don't forget the <span class="docutils literal">&lt;memoryBacking&gt;</span> elements. They are necessary for the
+vhost-user connection with the <span class="docutils literal">virtiofsd</span> daemon.</p>
+<p>Note that despite its name, the <span class="docutils literal">target dir</span> is an arbitrary string called
+a mount tag that is used inside the guest to identify the shared file system
+to be mounted. It does not have to correspond to the desired mount point in the
+guest.</p>
+</li>
+<li><p>Boot the guest and mount the filesystem</p>
+<pre class="literal-block">guest# mount -t virtiofs mount_tag /mnt/mount/path</pre>
+<p>Note: this requires virtiofs support in the guest kernel (Linux v5.4 or later)</p>
+</li>
+</ol>
+</div>
+<div class="section" id="optional-parameters">
+<h1><a class="toc-backref" href="#id3">Optional parameters</a></h1>
+<p>More optional elements can be specified</p>
+<pre class="literal-block">&lt;filesystem type='mount' accessmode='passthrough'&gt;
+  &lt;driver type='virtiofs' queue='1024'/&gt;
+  ...
+  &lt;binary path='/usr/libexec/virtiofsd' xattr='on'&gt;
+    &lt;cache mode='always'/&gt;
+    &lt;lock posix='on' flock='on'/&gt;
+  &lt;/binary&gt;
+&lt;/filesystem&gt;</pre>
+</div>
+<div class="section" id="externally-launched-virtiofsd">
+<h1><a class="toc-backref" href="#id4">Externally-launched virtiofsd</a></h1>
+<p>Libvirtd can also connect the <span class="docutils literal"><span class="pre">vhost-user-fs</span></span> device to a <span class="docutils literal">virtiofsd</span>
+daemon launched outside of libvirtd. In that case socket permissions,
+the mount tag and all the virtiofsd options are out of libvirtd's
+control and need to be set by the application running virtiofsd.</p>
+<pre class="literal-block">&lt;filesystem type='mount'&gt;
+  &lt;driver type='virtiofs' queue='1024'/&gt;
+  &lt;source socket='/var/virtiofsd.sock'/&gt;
+  &lt;target dir='tag'/&gt;
+&lt;/filesystem&gt;</pre>
+</div>
+<div class="section" id="other-options-for-vhost-user-memory-setup">
+<h1><a class="toc-backref" href="#id5">Other options for vhost-user memory setup</a></h1>
+<p>The following information is necessary if you are using older versions of QEMU
+and libvirt or have special memory backend requirements.</p>
+<p>Almost all virtio devices (all that use virtqueues) require access to
+at least certain portions of guest RAM (possibly policed by DMA). In
+case of virtiofsd, much like in case of other vhost-user (see
+<a class="reference external" href="https://www.qemu.org/docs/master/interop/vhost-user.html">https://www.qemu.org/docs/master/interop/vhost-user.html</a>) virtio
+devices that are realized by an userspace process, this in practice
+means that QEMU needs to allocate the backing memory for all the guest
+RAM as shared memory. As of QEMU 4.2, it is possible to explicitly
+specify a memory backend when specifying the NUMA topology. This
+method is however only viable for machine types that do support
+NUMA. As of QEMU 5.0.0 and libvirt 6.9.0, it is possible to
+specify the memory backend without NUMA (using the so called
+memobject interface).</p>
+<ol class="arabic">
+<li><p>Set up the memory backend</p>
+<ul>
+<li><p>Use memfd memory</p>
+<p>No host setup is required when using the Linux memfd memory backend.</p>
+</li>
+<li><p>Use file-backed memory</p>
+<p>Configure the directory where the files backing the memory will be stored
+with the <span class="docutils literal">memory_backing_dir</span> option in <span class="docutils literal">/etc/libvirt/qemu.conf</span></p>
+<pre class="literal-block"># This directory is used for memoryBacking source if configured as file.
+# NOTE: big files will be stored here
+memory_backing_dir = &quot;/dev/shm/&quot;</pre>
+</li>
+<li><p>Use hugepage-backed memory</p>
+<p>Make sure there are enough huge pages allocated for the requested guest memory.
+For example, for one guest with 2 GiB of RAM backed by 2 MiB hugepages:</p>
+<pre class="literal-block"># virsh allocpages 2M 1024</pre>
+</li>
+</ul>
+</li>
+<li><p>Specify the NUMA topology (this step is only required for the NUMA case)</p>
+<p>in the domain XML of the guest.
+For the simplest one-node topology for a guest with 2GiB of RAM and 8 vCPUs:</p>
+<pre class="literal-block">&lt;domain&gt;
+  ...
+  &lt;cpu ...&gt;
+    &lt;numa&gt;
+      &lt;cell id='0' cpus='0-7' memory='2' unit='GiB' memAccess='shared'/&gt;
+    &lt;/numa&gt;
+  &lt;/cpu&gt;
+ ...
+&lt;/domain&gt;</pre>
+<p>Note that the CPU element might already be specified and only one is allowed.</p>
+</li>
+<li><p>Specify the memory backend</p>
+<p>One of the following:</p>
+<ul>
+<li><p>memfd memory</p>
+<pre class="literal-block">&lt;domain&gt;
+  ...
+  &lt;memoryBacking&gt;
+    &lt;source type='memfd'/&gt;
+    &lt;access mode='shared'/&gt;
+  &lt;/memoryBacking&gt;
+  ...
+&lt;/domain&gt;</pre>
+</li>
+<li><p>File-backed memory</p>
+<pre class="literal-block">&lt;domain&gt;
+  ...
+  &lt;memoryBacking&gt;
+    &lt;access mode='shared'/&gt;
+  &lt;/memoryBacking&gt;
+  ...
+&lt;/domain&gt;</pre>
+<p>This will create a file in the directory specified in <span class="docutils literal">qemu.conf</span></p>
+</li>
+<li><p>Hugepage-backed memory</p>
+<pre class="literal-block">&lt;domain&gt;
+  ...
+  &lt;memoryBacking&gt;
+    &lt;hugepages&gt;
+      &lt;page size='2' unit='M'/&gt;
+    &lt;/hugepages&gt;
+    &lt;access mode='shared'/&gt;
+  &lt;/memoryBacking&gt;
+  ...
+&lt;/domain&gt;</pre>
+</li>
+</ul>
+</li>
+</ol>
+</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="generator" content="Docutils 0.16: http://docutils.sourceforge.net/" />
+<title>Snapshots</title>
+
+</head>
+<body>
+<div class="document" id="snapshots">
+<h1 class="title">Snapshots</h1>
+
+<div class="contents topic" id="contents">
+<p class="topic-title">Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#manual-storage-snapshotting" id="id1">Manual storage snapshotting</a></p>
+<ul>
+<li><p><a class="reference internal" href="#overview-of-manual-snapshots" id="id2">Overview of manual snapshots</a></p></li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="section" id="manual-storage-snapshotting">
+<h1><a class="toc-backref" href="#id1">Manual storage snapshotting</a></h1>
+<p>Certain use cases such as block storage on LVM or disks backed via storage
+exported through the <span class="docutils literal"><span class="pre">vhost-user-blk</span></span> protocol may require that snapshots are
+done in conjunction with the storage provider which is not managed by <strong>libvirt</strong>.</p>
+<p>To achieve this such disks can use <span class="docutils literal">snapshot</span> mode <span class="docutils literal">manual</span>. When a snapshot
+has a disk in manual mode the following happens:</p>
+<blockquote>
+<ol class="arabic simple">
+<li><p><span class="docutils literal">libvirt</span> takes snapshot of the VM memory if requested</p></li>
+</ol>
+<blockquote>
+<ol class="arabic simple">
+<li><p>If a live snapshot is requested (<span class="docutils literal">VIR_DOMAIN_SNAPSHOT_CREATE_LIVE</span>) the
+VM runs until the memory snapshot phase completes and is then paused.</p></li>
+<li><p>Otherwise the VM is paused right away.</p></li>
+</ol>
+</blockquote>
+<ol class="arabic simple">
+<li><p>Snapshot of disks which are marked for external snapsot is executed</p></li>
+<li><p>The API return success, the VM is paused.</p></li>
+<li><p>The user snapshots the externally managed storage</p></li>
+<li><p>The user resumes the execution of the VM (<span class="docutils literal">virsh resume $VM</span>)</p></li>
+</ol>
+</blockquote>
+<div class="section" id="overview-of-manual-snapshots">
+<h2><a class="toc-backref" href="#id2">Overview of manual snapshots</a></h2>
+<p>Manual snapshot of a disk is requested by setting the <span class="docutils literal">snapshot</span> property to
+<span class="docutils literal">manual</span> in the snapshot XML</p>
+<pre class="literal-block">&lt;domainsnapshot&gt;
+  &lt;memory file='/path/to/memory/img'/&gt;
+  &lt;disks&gt;
+    &lt;disk name='vda' snapshot='manual'/&gt;
+    &lt;disk name='vdb' snapshot='external'/&gt;
+    &lt;disk name='vdc' snapshot='no'/&gt;
+  &lt;/disks&gt;
+&lt;/domainsnapshot&gt;</pre>
+<p>or <span class="docutils literal"><span class="pre">--diskspec</span> vda,snapshot=manual</span> when using <span class="docutils literal">virsh <span class="pre">snapshot-create-as</span></span>:</p>
+<pre class="literal-block">$ virsh snapshot-create-as  --diskspec vda,snapshot=manual \
+                            --diskspec vdb,snapshot=external \
+                            --diskspec vdc,snapshot=no $VM \
+                            --memspec file=/path/to/memory/img</pre>
+</div>
+</div>
+</div>
+</body>
+</html>

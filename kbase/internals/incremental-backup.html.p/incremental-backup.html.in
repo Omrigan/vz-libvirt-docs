@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="generator" content="Docutils 0.16: http://docutils.sourceforge.net/" />
+<title>Internals of incremental backup handling in qemu</title>
+
+</head>
+<body>
+<div class="document" id="internals-of-incremental-backup-handling-in-qemu">
+<h1 class="title">Internals of incremental backup handling in qemu</h1>
+
+<div class="contents topic" id="contents">
+<p class="topic-title">Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#glossary" id="id1">Glossary</a></p></li>
+<li><p><a class="reference internal" href="#relationships-of-bitmaps-checkpoints-and-vm-disks" id="id2">Relationships of bitmaps, checkpoints and VM disks</a></p></li>
+<li><p><a class="reference internal" href="#integration-with-external-snapshots" id="id3">Integration with external snapshots</a></p>
+<ul>
+<li><p><a class="reference internal" href="#external-snapshot-terminology" id="id4">External snapshot terminology</a></p></li>
+<li><p><a class="reference internal" href="#handling-of-bitmaps-during-snapshots" id="id5">Handling of bitmaps during snapshots</a></p></li>
+<li><p><a class="reference internal" href="#manipulating-bitmaps-in-shell" id="id6">Manipulating bitmaps in shell</a></p></li>
+<li><p><a class="reference internal" href="#checking-bitmap-health" id="id7">Checking bitmap health</a></p></li>
+<li><p><a class="reference internal" href="#creating-external-snapshots-manually" id="id8">Creating external snapshots manually</a></p></li>
+<li><p><a class="reference internal" href="#committing-external-snapshots-manually" id="id9">Committing external snapshots manually</a></p></li>
+</ul>
+</li>
+</ul>
+</div>
+<p>Libvirt's implementation of incremental backups in the <span class="docutils literal">qemu</span> driver uses
+qemu's <span class="docutils literal"><span class="pre">block-dirty-bitmaps</span></span> under the hood to track the guest visible disk
+state changes corresponding to the points in time described by a libvirt
+checkpoint.</p>
+<p>There are some semantica implications with how libvirt creates and manages the
+bitmaps which de-facto become API as they are written into the disk images, and
+this document will try to summarize them.</p>
+<div class="section" id="glossary">
+<h1><a class="toc-backref" href="#id1">Glossary</a></h1>
+<p>See the knowledge base article on
+<a class="reference external" href="https://libvirt.org/kbase/domainstatecapture.html">domain state capture</a> for
+a deeper explanation of some of the concepts.</p>
+<p>Checkpoint</p>
+<blockquote>
+<p>A libvirt object which represents a named point in time of the life of the
+vm where libvirt tracks writes the VM has done, thereby allowing a backup of
+only the blocks which changed. Note that state of the VM memory is _not_
+captured.</p>
+<p>A checkpoint can be created either explicitly via the corresponding API
+(although this isn't very useful on its own), or simultaneously with an
+incremental or full backup of the VM using the <span class="docutils literal">virDomainBackupBegin</span> API
+which allows a next backup to only copy the differences.</p>
+</blockquote>
+<p>Backup</p>
+<blockquote>
+<p>A copy of either all blocks of selected disks (full backup) or blocks changed
+since a checkpoint (incremental backup) at the time the backup job was
+started. (Blocks modified while the backup job is running are not part of the
+backup!)</p>
+</blockquote>
+<p>Snapshot</p>
+<blockquote>
+<p>Similarly to a checkpoint it's a point in time in the lifecycle of the VM
+but the state of the VM including memory is captured at that point allowing
+returning to the state later.</p>
+</blockquote>
+<p>Blockjob</p>
+<blockquote>
+<p>A long running job which modifies the shape and/or location of the disk
+backing chain (images storing the disk contents). Libvirt supports
+<span class="docutils literal">block pull</span> where data is moved up the chain towards the active layer,
+<span class="docutils literal">block commit</span> where data is moved down the chain towards the base/oldest
+image. These blockjobs always remove images from the backing chain. Lastly
+<span class="docutils literal">block copy</span> where image is moved to a different location (and possibly
+collapsed moving all of the data into the new location into the one image).</p>
+</blockquote>
+<p>block-dirty-bitmap (bitmap)</p>
+<blockquote>
+<p>A data structure in qemu tracking which blocks were written by the guest
+OS since the bitmap was created.</p>
+</blockquote>
+</div>
+<div class="section" id="relationships-of-bitmaps-checkpoints-and-vm-disks">
+<h1><a class="toc-backref" href="#id2">Relationships of bitmaps, checkpoints and VM disks</a></h1>
+<p>When a checkpoint is created libvirt creates a block-dirty-bitmap for every
+configured VM disk named the same way as the chcheckpoint. The bitmap is
+actively recording which blocks were changed by the guest OS from that point on.
+Other bitmaps are not impacted by any way as they are self-contained:</p>
+<pre class="literal-block">+----------------+       +----------------+
+| disk: vda      |       | disk: vdb      |
++--------+-------+       +--------+-------+
+         |                        |
++--------v-------+       +--------v-------+
+| vda-1.qcow2    |       | vdb-1.qcow2    |
+|                |       |                |
+| bitmaps: chk-a |       | bitmaps: chk-a |
+|          chk-b |       |          chk-b |
+|                |       |                |
++----------------+       +----------------+</pre>
+<p>Bitmaps are created at the same time to track changes to all disks in sync and
+are active and persisted in the QCOW2 image. Other formats currently don't
+support this feature.</p>
+<p>Modification of bitmaps outside of libvirt is not recommended, but when adhering
+to the same semantics which the document will describe it should be safe to do
+so, even if we obviously can't guarantee that.</p>
+</div>
+<div class="section" id="integration-with-external-snapshots">
+<h1><a class="toc-backref" href="#id3">Integration with external snapshots</a></h1>
+<div class="section" id="external-snapshot-terminology">
+<h2><a class="toc-backref" href="#id4">External snapshot terminology</a></h2>
+<p>External snapshots on a disk level consist of layered chains of disk images. An
+image in the chain can have a <span class="docutils literal">backing image</span> placed below. Any chunk in the
+current image which was not written explicitly is transparent and if read the
+data from the backing image is passed through. An image placed on top of the
+current image is called <span class="docutils literal">overlay</span>.</p>
+<p>The bottommost backing image at the end of the chain is also usually described
+as <span class="docutils literal">base image</span>.</p>
+<p>The topmost overlay is the image which is being written to by the VM and is also
+described as the <span class="docutils literal">active</span> layer or image.</p>
+</div>
+<div class="section" id="handling-of-bitmaps-during-snapshots">
+<h2><a class="toc-backref" href="#id5">Handling of bitmaps during snapshots</a></h2>
+<p>Creating an external snapshot involves adding a overlay on top of the previously
+active image. Libvirt requires that all <span class="docutils literal"><span class="pre">block-dirty-bitmaps</span></span> which correspond
+to the checkpoint must be created in the new overlay before any write from the
+guest reaches the overlay to continue tracking which blocks are dirtied.</p>
+<p>Since there are no new bitmaps created by <span class="docutils literal">qemu</span> or <span class="docutils literal"><span class="pre">qemu-img</span></span> by default
+when creating an overlay, we need to re-create the appropriate bitmaps
+(see below) in the new overlay based on the previously active bitmaps in the
+active image. The new bitmaps are created with the same granularity.</p>
+<p>After taking a snapshot of the <span class="docutils literal">vda</span> disk from the example above placed into
+<span class="docutils literal"><span class="pre">vda-2.qcow2</span></span> the following topology will be created:</p>
+<pre class="literal-block">+----------------+
+| disk: vda      |
++-------+--------+
+        |
++-------v--------+    +----------------+
+| vda-2.qcow2    |    | vda-1.qcow2    |
+|                |    |                |
+| bitmaps: chk-a +----&gt; bitmaps: chk-a |
+|          chk-b |    |          chk-b |
+|                |    |                |
++----------------+    +----------------+</pre>
+</div>
+<div class="section" id="manipulating-bitmaps-in-shell">
+<h2><a class="toc-backref" href="#id6">Manipulating bitmaps in shell</a></h2>
+<p><strong>NOTE:</strong> Any of the examples expect that the full image chain isn't used by any
+running VM at the time.</p>
+<p><span class="docutils literal"><span class="pre">qemu-img</span> info</span> command reports information about dirty bitmaps in an image:</p>
+<pre class="literal-block">$ qemu-img info -f qcow2 vda-1.qcow2
+ image: vda-1.qcow2
+ file format: qcow2
+ virtual size: 100 MiB (104857600 bytes)
+ disk size: 220 KiB
+ cluster_size: 65536
+ Format specific information:
+     compat: 1.1
+     compression type: zlib
+     lazy refcounts: false
+     bitmaps:
+         [0]:
+             flags:
+                 [0]: in-use
+                 [1]: auto
+             name: chk-a
+             granularity: 65536
+         [1]:
+             flags:
+                 [0]: auto
+             name: chk-b
+             granularity: 65536
+     refcount bits: 16
+     corrupt: false</pre>
+<p>The <span class="docutils literal">flags</span> have following meanings:</p>
+<p><span class="docutils literal">auto</span> - <strong>recording</strong></p>
+<blockquote>
+<p>The bitmap is automatically activated when the image is opened for writing
+and thus it's actively recording writes.</p>
+</blockquote>
+<p><span class="docutils literal"><span class="pre">in-use</span></span> - <strong>inconsistent</strong></p>
+<blockquote>
+<p>The bitmap was not properly saved when the qemu process was shut down last
+time thus didn't consistently record all the changed sectors.</p>
+</blockquote>
+<p>It's recommended to use <span class="docutils literal"><span class="pre">--output=json</span></span> parameter to work with a machine
+readable output rather than trying to process the human readable output by
+scripts. For processing JSON in shell the <span class="docutils literal">jq</span> tool can be used.</p>
+<p>The <span class="docutils literal"><span class="pre">qemu-img</span> bitmap</span> command allows modification of block-dirty-bitmaps of an
+offline image. It supports the following operations relevant to this document
+(see man page for full list of operations):</p>
+<dl class="simple">
+<dt><span class="docutils literal"><span class="pre">--add</span> NAME</span></dt>
+<dd><p>Creates a new bitmap named <span class="docutils literal">NAME</span>. Optionally <span class="docutils literal"><span class="pre">-g</span></span> can be used to
+specify granularity.</p>
+</dd>
+<dt><span class="docutils literal"><span class="pre">--remove</span> NAME</span></dt>
+<dd><p>Deletes bitmap <span class="docutils literal">NAME</span>.</p>
+</dd>
+<dt><span class="docutils literal"><span class="pre">--merge</span> SRCBITMAP <span class="pre">-b</span> SRCFILE <span class="pre">-F</span> SRCFILEFMT DSTBITMAP</span></dt>
+<dd><p>Merges bitmap <span class="docutils literal">SRCBITMAP</span> from <span class="docutils literal">SRCFILE</span> into <span class="docutils literal">DSTBITMAP</span>.</p>
+</dd>
+</dl>
+</div>
+<div class="section" id="checking-bitmap-health">
+<h2><a class="toc-backref" href="#id7">Checking bitmap health</a></h2>
+<p>QEMU optimizes disk writes by only updating the bitmaps in certain cases. This
+also can cause problems in cases when e.g. QEMU crashes.</p>
+<p>For a chain of corresponding bitmaps in a backing chain images to be considered
+valid and eligible for use for an incremental backup with
+<span class="docutils literal">virDomainBackupBegin</span> the bitmaps intended to be used must conform to the
+following rules:</p>
+<ol class="arabic simple">
+<li><p>active/topmost image must contain the bitmap</p></li>
+<li><p>if a bitmap with the same name is contained in one of the backing images it
+must be a contiguous subchain starting from the topmost image which contains
+the bitmaps (no gaps)</p></li>
+<li><p>all of the above bitmaps must be marked as <strong>recording</strong></p></li>
+<li><p>all of the above bitmaps must not be <strong>inconsistent</strong></p></li>
+</ol>
+<p>(See also the <span class="docutils literal">qemuBlockBitmapChainIsValid</span> helper method in
+<span class="docutils literal">src/qemu/qemu_block.c</span>)</p>
+</div>
+<div class="section" id="creating-external-snapshots-manually">
+<h2><a class="toc-backref" href="#id8">Creating external snapshots manually</a></h2>
+<p>To create the same topology outside of libvirt (e.g when doing snapshots
+offline) the following pseudo-algorithm ensures that the new image after
+snapshot will work with backups. <span class="docutils literal">OVERLAY</span> corresponds to the new overlay
+image, <span class="docutils literal">ACTIVE</span> corresponds to the topmost image of the active chain prior to
+the snapshot.</p>
+<pre class="literal-block">create image OVERLAY on top of ACTIVE
+
+for each BITMAP in ACTIVE:
+    let GRANULARITY = granularity of BITMAP in ACTIVE
+
+    if BITMAP isn't RECORDING or is INCONSISTENT:
+        continue
+
+    create RECORDING bitmap named BITMAP in OVERLAY with GRANULARITY</pre>
+</div>
+<div class="section" id="committing-external-snapshots-manually">
+<h2><a class="toc-backref" href="#id9">Committing external snapshots manually</a></h2>
+<p><span class="docutils literal">block commit</span> refers to an operation where data from a subchain of the
+backing chain is merged down into the backing image of the subchain removing all
+images in the subchain.</p>
+<p><span class="docutils literal">COMMIT_TOP</span> refers to the top of the subchain to merge into <span class="docutils literal">COMMIT_BASE</span>
+(which stays in the new chain).</p>
+<p>It's strongly advised to use <span class="docutils literal">virDomainBlockCommit</span> API in libvirt directly if
+possible. Inactive VMs can be started with <span class="docutils literal">VIR_DOMAIN_START_PAUSED</span> flag
+(<span class="docutils literal">virsh start <span class="pre">--paused</span></span>) to prevent OS from running.</p>
+<p>Otherwise the following pseudo-algorithm can be used:</p>
+<p>Note: A <span class="docutils literal">valid</span> bitmap chain is a set of images containing bitmaps which
+conform to the rules about valid bitmaps mentioned above.</p>
+<pre class="literal-block">commit data from COMMIT_TOP to COMMIT_BASE
+
+let BITMAPS = valid bitmap chains in COMMIT_TOP
+
+for each BITMAP in BITMAPS
+    let GRANULARITY = granularity of BITMAP in ACTIVE
+
+    if BITMAP is not present in COMMIT_BASE:
+        create RECORDING bitmap named BITMAP in COMMIT_BASE with GRANULARITY
+
+    for each IMAGE between COMMIT_TOP(inclusive) and COMMIT_BASE(exclusive):
+        if BITMAP is not present in IMAGE:
+            break
+
+        merge BITMAP in IMAGE into BITMAP in COMMIT_BASE</pre>
+</div>
+</div>
+</div>
+</body>
+</html>

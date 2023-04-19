@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="generator" content="Docutils 0.16: http://docutils.sourceforge.net/" />
+<title>Systemtap of Libvirt</title>
+
+</head>
+<body>
+<div class="document" id="systemtap-of-libvirt">
+<h1 class="title">Systemtap of Libvirt</h1>
+
+<div class="contents topic" id="contents">
+<p class="topic-title">Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#preparation" id="id1">Preparation</a></p>
+<ul>
+<li><p><a class="reference internal" href="#libvirt" id="id2">Libvirt</a></p></li>
+<li><p><a class="reference internal" href="#systemtap" id="id3">Systemtap</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#tracing-events" id="id4">Tracing events</a></p></li>
+<li><p><a class="reference internal" href="#tracing-examples" id="id5">Tracing examples</a></p></li>
+</ul>
+</div>
+<p><a class="reference external" href="https://sourceware.org/systemtap/">Systemtap</a> is a scripting
+language and tool for dynamically probing or tracing in Linux kernel
+space or user space. This page is about the usage of systemtap
+in libvirt tracing.</p>
+<div class="section" id="preparation">
+<h1><a class="toc-backref" href="#id1">Preparation</a></h1>
+<div class="section" id="libvirt">
+<h2><a class="toc-backref" href="#id2">Libvirt</a></h2>
+<p>Libvirt should be configured with the systemtap option to support libvirt
+probing events in systemtap.</p>
+<p>For libvirt before <strong>6.7.0</strong>, it can be configured by:</p>
+<pre class="literal-block"> mkdir build
+ cd build
+../configure --with-dtrace</pre>
+<p>For libvirt <strong>6.7.0</strong> or later, configure it by the <span class="docutils literal">meson</span> (seeing
+<a class="reference external" href="https://libvirt.org/compiling.html">libvirt compiling</a>):</p>
+<pre class="literal-block">meson build -Ddtrace=enabled</pre>
+<p>For the libvirt binaries installed by the package manager like <span class="docutils literal">dnf</span> or
+<span class="docutils literal">apt</span>, if libvirt systemtap tapset <span class="docutils literal">/usr/share/systemtap/tapset/libvirt_*</span>
+exists, it means the libvirt enables the systemtap feature.</p>
+</div>
+<div class="section" id="systemtap">
+<h2><a class="toc-backref" href="#id3">Systemtap</a></h2>
+<p>For most of linux distributions, execute <span class="docutils literal"><span class="pre">stap-prep</span></span> by root to prepare the
+environment for systemtap after installing the systemtap. If your distribution
+doesn't have <span class="docutils literal"><span class="pre">stap-prep</span></span>, install the <span class="docutils literal">kernel debuginfo</span> packages manually.</p>
+<p>After these above, run this test command to confirm the systemtap works well:</p>
+<pre class="literal-block">stap -e 'probe oneshot{ printf(&quot;hello world\n&quot;)}'</pre>
+</div>
+</div>
+<div class="section" id="tracing-events">
+<h1><a class="toc-backref" href="#id4">Tracing events</a></h1>
+<p>The libvirt systemtap tracing events are defined in tapset
+<span class="docutils literal">/usr/share/systemtap/tapset/libvirt_*</span>. Libvirt support these type of tracing
+events: <span class="docutils literal">dbus</span>, <span class="docutils literal">event_glib</span>, <span class="docutils literal">object</span>, <span class="docutils literal">qemu</span>, <span class="docutils literal">rpc</span>.</p>
+<p>List all tracing events in libvirt:</p>
+<pre class="literal-block">grep 'probe libvirt.[a-z_0-9.]*' /usr/share/systemtap/tapset/libvirt_* -o|cut -f 2 -d :</pre>
+</div>
+<div class="section" id="tracing-examples">
+<h1><a class="toc-backref" href="#id5">Tracing examples</a></h1>
+<p>Here is an example of the systemtap script to trace the QMP messages sent from libvirtd
+daemon to the qemu process.
+<span class="docutils literal">qmp.stp</span>:</p>
+<pre class="literal-block">probe begin
+{
+  printf(&quot;Start tracing\n&quot;)
+}
+probe libvirt.qemu.monitor_send_msg
+{
+  printf(&quot;QMPs: %s&quot;, msg);
+}</pre>
+<p>Then run the systemtap script attaching to the libvirtd process:</p>
+<pre class="literal-block">stap qmp.stp -x `pidof libvirtd`</pre>
+<p>To trace a libvirtd started from command line, use the option <span class="docutils literal"><span class="pre">-c</span></span></p>
+<pre class="literal-block">stap qmp.stp -c &quot;/usr/sbin/libvirtd&quot;</pre>
+<p>Then after seeing the welcome message &quot;Start tracing&quot; from systemtap, then execute a virsh
+command associated with QMP, for example <span class="docutils literal">virsh domstats</span>. Then get the QMP tracing logs
+from systemtap. For example, the result from <span class="docutils literal">virsh domstats</span></p>
+<pre class="literal-block">QMPs: {&quot;execute&quot;:&quot;query-balloon&quot;,&quot;id&quot;:&quot;libvirt-393&quot;}
+QMPs: {&quot;execute&quot;:&quot;qom-get&quot;,&quot;arguments&quot;:{&quot;path&quot;:&quot;/machine/peripheral/balloon0&quot;,&quot;property&quot;:&quot;guest-stats&quot;},&quot;id&quot;:&quot;libvirt-394&quot;}
+QMPs: {&quot;execute&quot;:&quot;query-blockstats&quot;,&quot;id&quot;:&quot;libvirt-395&quot;}
+QMPs: {&quot;execute&quot;:&quot;query-named-block-nodes&quot;,&quot;id&quot;:&quot;libvirt-396&quot;}
+QMPs: {&quot;execute&quot;:&quot;query-iothreads&quot;,&quot;id&quot;:&quot;libvirt-397&quot;}</pre>
+<p>For more examples of libvirt systemtap scripts, see the scripts in <span class="docutils literal"><span class="pre">/usr/share/doc/libvirt-docs/examples/systemtap</span></span>
+For more details of systemtap language, see <a class="reference external" href="https://sourceware.org/systemtap/documentation.html">document of systemtap</a></p>
+</div>
+</div>
+</body>
+</html>

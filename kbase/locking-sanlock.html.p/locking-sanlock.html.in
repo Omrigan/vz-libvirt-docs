@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="generator" content="Docutils 0.16: http://docutils.sourceforge.net/" />
+<title>Virtual machine lock manager, sanlock plugin</title>
+
+</head>
+<body>
+<div class="document" id="virtual-machine-lock-manager-sanlock-plugin">
+<h1 class="title">Virtual machine lock manager, sanlock plugin</h1>
+
+<div class="contents topic" id="contents">
+<p class="topic-title">Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#sanlock-daemon-setup" id="id1">Sanlock daemon setup</a></p></li>
+<li><p><a class="reference internal" href="#libvirt-sanlock-plugin-configuration" id="id2">libvirt sanlock plugin configuration</a></p></li>
+<li><p><a class="reference internal" href="#libvirt-sanlock-storage-configuration" id="id3">libvirt sanlock storage configuration</a></p></li>
+<li><p><a class="reference internal" href="#qemu-kvm-driver-configuration" id="id4">QEMU/KVM driver configuration</a></p></li>
+<li><p><a class="reference internal" href="#domain-configuration" id="id5">Domain configuration</a></p></li>
+</ul>
+</div>
+<p>This page describes use of the
+<a class="reference external" href="https://fedorahosted.org/sanlock/">sanlock</a> service as a <a class="reference external" href="locking.html">lock
+driver</a> plugin for virtual machine disk mutual
+exclusion.</p>
+<div class="section" id="sanlock-daemon-setup">
+<h1><a class="toc-backref" href="#id1">Sanlock daemon setup</a></h1>
+<p>On many operating systems, the <strong>sanlock</strong> plugin is distributed in a
+sub-package which needs to be installed separately from the main libvirt
+RPM. On a Fedora/RHEL host this can be done with the <span class="docutils literal">yum</span> command</p>
+<pre class="literal-block">$ su - root
+# yum install libvirt-lock-sanlock</pre>
+<p>The next step is to start the sanlock daemon. For maximum safety sanlock
+prefers to have a connection to a watchdog daemon. This will cause the
+entire host to be rebooted in the event that sanlock crashes /
+terminates abnormally. To start the watchdog daemon on a Fedora/RHEL
+host the following commands can be run:</p>
+<pre class="literal-block">$ su - root
+# chkconfig wdmd on
+# service wdmd start</pre>
+<p>Once the watchdog is running, sanlock can be started as follows</p>
+<pre class="literal-block"># chkconfig sanlock on
+# service sanlock start</pre>
+<p><em>Note:</em> if you wish to avoid the use of the watchdog, add the following
+line to <span class="docutils literal">/etc/sysconfig/sanlock</span> before starting it</p>
+<pre class="literal-block">SANLOCKOPTS=&quot;-w 0&quot;</pre>
+<p>The sanlock daemon must be started on every single host that will be
+running virtual machines. So repeat these steps as necessary.</p>
+</div>
+<div class="section" id="libvirt-sanlock-plugin-configuration">
+<h1><a class="toc-backref" href="#id2">libvirt sanlock plugin configuration</a></h1>
+<p>Once the sanlock daemon is running, the next step is to configure the
+libvirt sanlock plugin. There is a separate configuration file for each
+libvirt driver that is using sanlock. For QEMU, we will edit
+<span class="docutils literal"><span class="pre">/etc/libvirt/qemu-sanlock.conf</span></span> There is one mandatory parameter that
+needs to be set, the <span class="docutils literal">host_id</span>. This is an integer between 1 and 2000,
+which must be set to a <strong>unique</strong> value on each host running virtual
+machines.</p>
+<pre class="literal-block">$ su - root
+# augtool -s set /files/etc/libvirt/qemu-sanlock.conf/host_id 1</pre>
+<p>Repeat this on every host, changing <strong>1</strong> to a unique value for the
+host.</p>
+</div>
+<div class="section" id="libvirt-sanlock-storage-configuration">
+<h1><a class="toc-backref" href="#id3">libvirt sanlock storage configuration</a></h1>
+<p>The sanlock plugin needs to create leases in a directory that is on a
+filesystem shared between all hosts running virtual machines. Obvious
+choices for this include NFS or GFS2. The libvirt sanlock plugin expects
+its lease directory be at <span class="docutils literal">/var/lib/libvirt/sanlock</span> so update the
+host's <span class="docutils literal">/etc/fstab</span> to mount a suitable shared/cluster filesystem at
+that location</p>
+<pre class="literal-block">$ su - root
+# echo &quot;some.nfs.server:/export/sanlock /var/lib/libvirt/sanlock nfs hard,nointr 0 0&quot; &gt;&gt; /etc/fstab
+# mount /var/lib/libvirt/sanlock</pre>
+<p>If your sanlock daemon happen to run under non-root privileges, you need
+to tell this to libvirt so it chowns created files correctly. This can
+be done by setting <span class="docutils literal">user</span> and/or <span class="docutils literal">group</span> variables in the
+configuration file. Accepted values range is specified in description to
+the same variables in <span class="docutils literal">/etc/libvirt/qemu.conf</span>. For example:</p>
+<pre class="literal-block">augtool -s set /files/etc/libvirt/qemu-sanlock.conf/user sanlock
+augtool -s set /files/etc/libvirt/qemu-sanlock.conf/group sanlock</pre>
+<p>But remember, that if this is NFS share, you need a no_root_squash-ed
+one for chown (and chmod possibly) to succeed.</p>
+<p>In terms of storage requirements, if the filesystem uses 512 byte
+sectors, you need to allow for <span class="docutils literal">1MB</span> of storage for each guest disk.
+So if you have a network with 20 virtualization hosts, each running 50
+virtual machines and an average of 2 disks per guest, you will need
+<span class="docutils literal">20*50*2 == 2000 MB</span> of storage for sanlock.</p>
+<p>On one of the hosts on the network is it wise to setup a cron job which
+runs the <span class="docutils literal"><span class="pre">virt-sanlock-cleanup</span></span> script periodically. This scripts
+deletes any lease files which are not currently in use by running
+virtual machines, freeing up disk space on the shared filesystem. Unless
+VM disks are very frequently created + deleted it should be sufficient
+to run the cleanup once a week.</p>
+</div>
+<div class="section" id="qemu-kvm-driver-configuration">
+<h1><a class="toc-backref" href="#id4">QEMU/KVM driver configuration</a></h1>
+<p>The QEMU/KVM driver is fully integrated with the lock manager framework
+as of release 0.9.3. The out of the box configuration, however,
+currently uses the <strong>nop</strong> lock manager plugin. To get protection for
+disks, it is thus necessary to reconfigure QEMU to activate the
+<strong>sanlock</strong> driver. This is achieved by editing the QEMU driver
+configuration file (<span class="docutils literal">/etc/libvirt/qemu.conf</span>) and changing the
+<span class="docutils literal">lock_manager</span> configuration tunable.</p>
+<pre class="literal-block">$ su - root
+# augtool -s  set /files/etc/libvirt/qemu.conf/lock_manager sanlock
+# service libvirtd restart</pre>
+<p>If all went well, libvirtd will have talked to sanlock and created the
+basic lockspace. This can be checked by looking for existence of the
+following file</p>
+<pre class="literal-block"># ls /var/lib/libvirt/sanlock/
+__LIBVIRT__DISKS__</pre>
+<p>Every time you start a guest, additional lease files will appear in this
+directory, one for each virtual disk. The lease files are named based on
+the MD5 checksum of the fully qualified path of the virtual disk backing
+file. So if the guest is given a disk backed by
+<span class="docutils literal">/var/lib/libvirt/images/demo.img</span> expect to see a lease
+<span class="docutils literal">/var/lib/libvirt/sanlock/bfa0240911bc17753e0b473688822159</span></p>
+<p>It should be obvious that for locking to work correctly, every host
+running virtual machines should have storage configured in the same way.
+The easiest way to do this is to use the libvirt storage pool capability
+to configure any NFS volumes, iSCSI targets, or SCSI HBAs used for guest
+storage. Simply replicate the same storage pool XML across every host.
+It is important that any storage pools exposing block devices are
+configured to create volume paths under <span class="docutils literal"><span class="pre">/dev/disks/by-path</span></span> to ensure
+stable paths across hosts. An example iSCSI configuration which ensures
+this is:</p>
+<pre class="literal-block">&lt;pool type='iscsi'&gt;
+  &lt;name&gt;myiscsipool&lt;/name&gt;
+  &lt;source&gt;
+    &lt;host name='192.168.254.8'/&gt;
+    &lt;device path='your-iscsi-target-iqn'/&gt;
+  &lt;/source&gt;
+  &lt;target&gt;
+    &lt;path&gt;/dev/disk/by-path&lt;/path&gt;
+  &lt;/target&gt;
+&lt;/pool&gt;</pre>
+</div>
+<div class="section" id="domain-configuration">
+<h1><a class="toc-backref" href="#id5">Domain configuration</a></h1>
+<p>In case sanlock loses access to disk locks for some reason, it will kill
+all domains that lost their locks. This default behavior may be changed
+using <a class="reference external" href="../formatdomain.html#events-configuration">on_lockfailure element</a> in
+domain XML. When this element is present, sanlock will call
+<span class="docutils literal">sanlock_helper</span> (provided by libvirt) with the specified action. This
+helper binary will connect to libvirtd and thus it may need to
+authenticate if libvirtd was configured to require that on the
+read-write UNIX socket. To provide the appropriate credentials to
+sanlock_helper, a <a class="reference external" href="../auth.html#client-configuration">client authentication
+file</a> needs to contain something like
+the following:</p>
+<pre class="literal-block">[auth-libvirt-localhost]
+credentials=sanlock
+
+[credentials-sanlock]
+authname=login
+password=password</pre>
+</div>
+</div>
+</body>
+</html>

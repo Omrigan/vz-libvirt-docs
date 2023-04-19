@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="generator" content="Docutils 0.16: http://docutils.sourceforge.net/" />
+<title>libvirt API call overview</title>
+
+</head>
+<body>
+<div class="document" id="libvirt-api-call-overview">
+<h1 class="title">libvirt API call overview</h1>
+
+<p>The following diagram depicts code flow from a client application, in this case
+the libvirt provided <span class="docutils literal">virsh</span> command through the various layers to elicit a
+response from some chosen hypervisor.</p>
+<p><strong>Note:</strong> Some aspects of this document may be outdated.</p>
+<img alt="virConnectOpen calling sequence" src="../../images/libvirt-virConnect-example.png" />
+<ul>
+<li><p><span class="docutils literal">virsh <span class="pre">-c</span> <span class="pre">qemu:///system</span> list <span class="pre">--all</span></span></p>
+<p>After the virsh code processes the input arguments, it eventually will make a
+call to open the connection using a default set of authentication credentials
+(<span class="docutils literal">virConnectAuthDefault</span>).</p>
+</li>
+<li><p><span class="docutils literal">virConnectOpenAuth()</span></p>
+<p>Each of the <span class="docutils literal">virConnectOpen</span> APIs will first call <span class="docutils literal">virInitialize()</span> and
+then revector through the local &quot;<span class="docutils literal">do_open()</span>&quot; call.</p>
+<ul>
+<li><p><span class="docutils literal">virInitialize()</span></p>
+<p>Calls the registration API for each of the drivers with client-side only
+capabilities and then call the <span class="docutils literal">remoteRegister()</span> API last. This
+ensures the <span class="docutils literal">virDriverTab[]</span> tries local drivers first before using the
+remote driver.</p>
+</li>
+<li><p>Loop through <span class="docutils literal">virDriverTab[]</span> entries trying to call their respective
+&quot;open&quot; entry point (in our case <span class="docutils literal">remoteOpen()</span>)</p></li>
+<li><p>After successful return from the <span class="docutils literal">virDriverTab[]</span> <span class="docutils literal">open()</span> API,
+attempt to find and open other drivers (network, interface, storage, etc.)</p></li>
+</ul>
+</li>
+<li><p><span class="docutils literal">remoteOpen()</span></p>
+<p>After a couple of URI checks, a call to <span class="docutils literal">doRemoteOpen()</span> is made</p>
+<ul>
+<li><p>Determine network transport and host/port to use from URI</p>
+<p>The transport will be either <span class="docutils literal">tls</span>, <span class="docutils literal">unix</span>, <span class="docutils literal">ssh</span>, <span class="docutils literal">libssh2</span>,
+<span class="docutils literal">ext</span>, or <span class="docutils literal">tcp</span> with the default of <span class="docutils literal">tls</span>. Decode the host/port if
+provided or default to <span class="docutils literal">localhost</span>.</p>
+</li>
+<li><p><span class="docutils literal">virNetClientRegisterAsyncIO()</span></p>
+<p>Register an I/O callback mechanism to get returned data via
+<span class="docutils literal">virNetClientIncomingEvent()</span></p>
+</li>
+<li><p><span class="docutils literal"><span class="pre">call(...REMOTE_PROC_OPEN...)</span></span></p>
+<p>Eventually routes into <span class="docutils literal">virNetClientProgramCall()</span> which will call
+<span class="docutils literal">virNetClientSendWithReply()</span> and eventually uses <span class="docutils literal">virNetClientIO()</span>
+to send the message to libvirtd and then waits for a response using
+<span class="docutils literal">virNetClientIOEventLoop()</span></p>
+</li>
+<li><p><span class="docutils literal">virNetClientIncomingEvent()</span></p>
+<p>Receives the returned packet and processes through
+<span class="docutils literal">virNetClientIOUpdateCallback()</span></p>
+</li>
+</ul>
+</li>
+<li><p>libvirtd Daemon</p>
+<ul>
+<li><p>Daemon Startup</p>
+<p>The daemon initialization processing will declare itself as a daemon via a
+<span class="docutils literal">virNetDaemonNew()</span> call, then creates new server using
+<span class="docutils literal">virNetServerNew()</span> and adds that server to the main daemon struct with
+<span class="docutils literal">virNetDaemonAddServer()</span> call. It will then use
+<span class="docutils literal">virDriverLoadModule()</span> to find/load all known drivers, set up an RPC
+server program using the <span class="docutils literal">remoteProcs[]</span> table via a
+<span class="docutils literal">virNetServerProgramNew()</span> call. The table is the corollary to the
+<span class="docutils literal">remote_procedure</span> enum list in the client. It lists all the functions
+to be called in the same order. Once RPC is set up, networking server
+sockets are opened, the various driver state initialization routines are
+run from the <span class="docutils literal">virStateDriverTab[]</span>, the network links are enabled, and
+the daemon waits for work.</p>
+</li>
+<li><p>RPC</p>
+<p>When a message is received, the <span class="docutils literal">remoteProcs[]</span> table is referenced for
+the <span class="docutils literal">REMOTE_PROC_OPEN</span> call entry. This results in
+<span class="docutils literal">remoteDispatchOpen()</span> being called via the
+<span class="docutils literal">virNetServerProgramDispatchCall()</span>.</p>
+</li>
+<li><p><span class="docutils literal">remoteDispatchOpen()</span></p>
+<p>The API will read the argument passed picking out the <span class="docutils literal">name</span> of the
+driver to be opened. The code will then call <span class="docutils literal">virConnectOpen()</span> or
+<span class="docutils literal">virConnectOpenReadOnly()</span> depending on the argument <span class="docutils literal">flags</span>.</p>
+</li>
+<li><p><span class="docutils literal">virConnectOpen()</span> or <span class="docutils literal">virConnectOpenReadOnly()</span></p>
+<p>Just like the client except that upon entry the URI is what was passed
+from the client and will be found and opened to process the data.</p>
+<p>The returned structure data is returned via the <span class="docutils literal">virNetServer</span>
+interfaces to the remote driver which then returns it to the client
+application.</p>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+</body>
+</html>

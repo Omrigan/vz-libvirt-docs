@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="generator" content="Docutils 0.16: http://docutils.sourceforge.net/" />
+<title>Libvirt Go Language API (with Go modules)</title>
+
+</head>
+<body>
+<div class="document" id="libvirt-go-language-api-with-go-modules">
+<h1 class="title">Libvirt Go Language API (with Go modules)</h1>
+
+<p>The <a class="reference external" href="https://golang.org/">Go</a> package <span class="docutils literal">libvirt.org/go/libvirt</span> provides
+<a class="reference external" href="https://golang.org/cmd/cgo/">CGo</a> binding from the OS native Libvirt API.</p>
+<p>This package replaces the obsolete <a class="reference external" href="../libvirt-go.html">libvirt.org/libvirt-go</a> package in order to switch to using <a class="reference external" href="https://semver.org/">semver</a> and <a class="reference external" href="https://golang.org/ref/mod">Go modules</a>.
+Aside from the changed import path and versioning scheme, the API is fully
+compatible with the legacy package.</p>
+<p>In general the Go representation is a direct 1-1 mapping from native API
+concepts to Go, so the native API documentation should serve as a reference
+for most behaviour.</p>
+<p>For details of Go specific behaviour consult the
+<a class="reference external" href="https://pkg.go.dev/libvirt.org/go/libvirt">Go package documentation</a>.</p>
+</div>
+</body>
+</html>

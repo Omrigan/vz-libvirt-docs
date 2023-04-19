@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="generator" content="Docutils 0.16: http://docutils.sourceforge.net/" />
+<title>Memory devices</title>
+
+</head>
+<body>
+<div class="document" id="memory-devices">
+<h1 class="title">Memory devices</h1>
+
+<div class="contents topic" id="contents">
+<p class="topic-title">Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#basics" id="id1">Basics</a></p></li>
+<li><p><a class="reference internal" href="#virtio-mem-model" id="id2"><span class="docutils literal"><span class="pre">virtio-mem</span></span> model</a></p></li>
+</ul>
+</div>
+<div class="section" id="basics">
+<h1><a class="toc-backref" href="#id1">Basics</a></h1>
+<p>Memory devices can be divided into two families: volatile and non-volatile.
+The former is typical RAM memory: it's volatile and thus its contents doesn't
+survive guest reboots or power cycles. The latter retains its contents across
+reboots or power outages.</p>
+<p>In Libvirt, there are two models for volatile memory:</p>
+<ul>
+<li><p><span class="docutils literal">dimm</span> model:</p>
+<pre class="literal-block">&lt;memory model='dimm'&gt;
+  &lt;target&gt;
+    &lt;size unit='KiB'&gt;523264&lt;/size&gt;
+    &lt;node&gt;0&lt;/node&gt;
+  &lt;/target&gt;
+  &lt;address type='dimm' slot='0'/&gt;
+&lt;/memory&gt;</pre>
+</li>
+<li><p><span class="docutils literal"><span class="pre">virtio-mem</span></span> model:</p>
+<pre class="literal-block">&lt;memory model='virtio-mem'&gt;
+  &lt;target&gt;
+    &lt;size unit='KiB'&gt;1048576&lt;/size&gt;
+    &lt;node&gt;0&lt;/node&gt;
+    &lt;block unit='KiB'&gt;2048&lt;/block&gt;
+    &lt;requested unit='KiB'&gt;524288&lt;/requested&gt;
+  &lt;/target&gt;
+  &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x0'/&gt;
+&lt;/memory&gt;</pre>
+</li>
+</ul>
+<p>Then there are two models for non-volatile memory:</p>
+<ul>
+<li><p><span class="docutils literal">nvdimm</span> model:</p>
+<pre class="literal-block">&lt;memory model='nvdimm'&gt;
+  &lt;source&gt;
+    &lt;path&gt;/tmp/nvdimm&lt;/path&gt;
+  &lt;/source&gt;
+  &lt;target&gt;
+    &lt;size unit='KiB'&gt;523264&lt;/size&gt;
+    &lt;node&gt;0&lt;/node&gt;
+  &lt;/target&gt;
+  &lt;address type='dimm' slot='0'/&gt;
+&lt;/memory&gt;</pre>
+</li>
+<li><p><span class="docutils literal"><span class="pre">virtio-pmem</span></span> model:</p>
+<pre class="literal-block">&lt;memory model='virtio-pmem' access='shared'&gt;
+  &lt;source&gt;
+    &lt;path&gt;/tmp/virtio_pmem&lt;/path&gt;
+  &lt;/source&gt;
+  &lt;target&gt;
+    &lt;size unit='KiB'&gt;524288&lt;/size&gt;
+  &lt;/target&gt;
+  &lt;address type='pci' domain='0x0000' bus='0x00' slot='0x05' function='0x0'/&gt;
+&lt;/memory&gt;</pre>
+</li>
+</ul>
+<p>Please note that (maybe somewhat surprisingly) virtio models go onto PCI bus
+instead of DIMM slots.</p>
+<p>Furthermore, DIMMs can have <span class="docutils literal">&lt;source/&gt;</span> element which configures backend for
+devices. For NVDIMMs the element is mandatory and reflects where the content
+is saved.</p>
+<p>See <a class="reference external" href="../formatdomain.html#memory-devices">memory devices documentation</a>.</p>
+</div>
+<div class="section" id="virtio-mem-model">
+<h1><a class="toc-backref" href="#id2"><span class="docutils literal"><span class="pre">virtio-mem</span></span> model</a></h1>
+<p>The <span class="docutils literal"><span class="pre">virtio-mem</span></span> model can be viewed as revised memory balloon. It offers
+adding and removing memory (without the actual hotplug of the device). It
+solves problems that memory balloon can't solve on its own and thus is more
+flexible than DIMM + balloon solution. <span class="docutils literal"><span class="pre">virtio-mem</span></span> is NUMA aware, and thus
+memory can be inflated/deflated only for a subset of guest NUMA nodes.  Also,
+it works with chunks that are either exposed to guest or reclaimed from it.</p>
+<p>See <a class="reference external" href="https://virtio-mem.gitlab.io/">https://virtio-mem.gitlab.io/</a></p>
+<p>Under the hood, <span class="docutils literal"><span class="pre">virtio-mem</span></span> device is split into chunks of equal size which
+are then exposed to the guest. Either all of them or only a portion depending
+on user's request. Therefore there are three important sizes for
+<span class="docutils literal"><span class="pre">virtio-mem</span></span>. All are to be found under <span class="docutils literal">&lt;target/&gt;</span> element:</p>
+<ol class="arabic simple">
+<li><p>The maximum size the device can ever offer, exposed under <span class="docutils literal">&lt;size/&gt;</span></p></li>
+<li><p>The size of a single block, exposed under <span class="docutils literal">&lt;block/&gt;</span></p></li>
+<li><p>The current size exposed to the guest, exposed under <span class="docutils literal">&lt;requested/&gt;</span></p></li>
+</ol>
+<p>For instance, in the following example the maximum size is 4GiB, the block size
+is 2MiB and only 1GiB should be exposed to the guest:</p>
+<blockquote>
+<pre class="literal-block">&lt;memory model='virtio-mem'&gt;
+  &lt;target&gt;
+    &lt;size unit='KiB'&gt;4194304&lt;/size&gt;
+    &lt;block unit='KiB'&gt;2048&lt;/block&gt;
+    &lt;requested unit='KiB'&gt;1048576&lt;/requested&gt;
+  &lt;/target&gt;
+&lt;/memory&gt;</pre>
+</blockquote>
+<p>Please note that <span class="docutils literal">&lt;requested/&gt;</span> must be an integer multiple of <span class="docutils literal">&lt;block/&gt;</span>
+size or zero (no blocks exposed to the guest) and has to be less or equal to
+<span class="docutils literal">&lt;size/&gt;</span> (all blocks exposed to the guest). Furthermore, QEMU recommends the
+<span class="docutils literal">&lt;block/&gt;</span> size to be as big as a Transparent Huge Page (usually 2MiB).</p>
+<p>To change the size exposed to the guest, users should pass memory device XML
+with nothing but <span class="docutils literal">&lt;requested/&gt;</span> changed into the
+<span class="docutils literal">virDomainUpdateDeviceFlags()</span> API. For user's convenience this can be done
+via virsh too:</p>
+<blockquote>
+<pre class="literal-block"># virsh update-memory-device $dom --requested-size 2GiB</pre>
+</blockquote>
+<p>If there are two or more <span class="docutils literal">&lt;memory/&gt;</span> devices then <span class="docutils literal"><span class="pre">--alias</span></span> shall be used
+to tell virsh which memory device should be updated.</p>
+<p>For running guests there is fourth size that can be found under <span class="docutils literal">&lt;target/&gt;</span>:</p>
+<blockquote>
+<pre class="literal-block">&lt;current unit='KiB'&gt;2097152&lt;/current&gt;</pre>
+</blockquote>
+<p>The <span class="docutils literal">&lt;current/&gt;</span> reflects the current size used by the guest. In general it
+can differ from <span class="docutils literal">&lt;requested/&gt;</span>. Reasons include guest kernel missing
+<span class="docutils literal"><span class="pre">virtio-mem</span></span> module and thus being unable to take offered memory, or guest
+kernel being unable to free memory.  Since <span class="docutils literal">&lt;current/&gt;</span> only reports size to
+users, the element is never parsed. It is formatted only into live XML.</p>
+<p>Since changing <span class="docutils literal">&lt;current/&gt;</span> allocation requires cooperation with guest
+kernel, requests for change are not instant. Therefore, libvirt emits
+<span class="docutils literal">VIR_DOMAIN_EVENT_ID_MEMORY_DEVICE_SIZE_CHANGE</span> event whenever current
+allocation changed.</p>
+</div>
+</div>
+</body>
+</html>

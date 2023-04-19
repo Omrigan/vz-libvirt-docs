@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="generator" content="Docutils 0.16: http://docutils.sourceforge.net/" />
+<title>Resource Lock Manager</title>
+
+</head>
+<body>
+<div class="document" id="resource-lock-manager">
+<h1 class="title">Resource Lock Manager</h1>
+
+<div class="contents topic" id="contents">
+<p class="topic-title">Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#goals" id="id1">Goals</a></p></li>
+<li><p><a class="reference internal" href="#requirements" id="id2">Requirements</a></p></li>
+<li><p><a class="reference internal" href="#design" id="id3">Design</a></p></li>
+<li><p><a class="reference internal" href="#plugin-implementations" id="id4">Plugin Implementations</a></p></li>
+<li><p><a class="reference internal" href="#qemu-driver-integration" id="id5">QEMU Driver integration</a></p></li>
+<li><p><a class="reference internal" href="#lock-usage-patterns" id="id6">Lock usage patterns</a></p>
+<ul>
+<li><p><a class="reference internal" href="#lock-acquisition" id="id7">Lock acquisition</a></p></li>
+<li><p><a class="reference internal" href="#lock-release" id="id8">Lock release</a></p></li>
+</ul>
+</li>
+</ul>
+</div>
+<p>This page describes the design of the resource lock manager that is used for
+locking disk images, to ensure exclusive access to content.</p>
+<div class="section" id="goals">
+<h1><a class="toc-backref" href="#id1">Goals</a></h1>
+<p>The high level goal is to prevent the same disk image being used by more than
+one QEMU instance at a time (unless the disk is marked as shareable, or
+readonly). The scenarios to be prevented are thus:</p>
+<ol class="arabic simple">
+<li><p>Two different guests running configured to point at the same disk image.</p></li>
+<li><p>One guest being started more than once on two different machines due to admin
+mistake</p></li>
+<li><p>One guest being started more than once on a single machine due to libvirt
+driver bug on a single machine.</p></li>
+</ol>
+</div>
+<div class="section" id="requirements">
+<h1><a class="toc-backref" href="#id2">Requirements</a></h1>
+<p>The high level goal leads to a set of requirements for the lock manager design</p>
+<ol class="arabic simple">
+<li><p>A lock must be held on a disk whenever a QEMU process has the disk open</p></li>
+<li><p>The lock scheme must allow QEMU to be configured with readonly, shared write,
+or exclusive writable disks</p></li>
+<li><p>A lock handover must be performed during the migration process where 2 QEMU
+processes will have the same disk open concurrently.</p></li>
+<li><p>The lock manager must be able to identify and kill the process accessing the
+resource if the lock is revoked.</p></li>
+<li><p>Locks can be acquired for arbitrary VM related resources, as determined by
+the management application.</p></li>
+</ol>
+</div>
+<div class="section" id="design">
+<h1><a class="toc-backref" href="#id3">Design</a></h1>
+<p>Within a lock manager the following series of operations will need to be
+supported.</p>
+<ul class="simple">
+<li><p><strong>Register object</strong> Register the identity of an object against which locks
+will be acquired</p></li>
+<li><p><strong>Add resource</strong> Associate a resource with an object for future lock
+acquisition / release</p></li>
+<li><p><strong>Acquire locks</strong> Acquire the locks for all resources associated with the
+object</p></li>
+<li><p><strong>Release locks</strong> Release the locks for all resources associated with the
+object</p></li>
+<li><p><strong>Inquire locks</strong> Get a representation of the state of the locks for all
+resources associated with the object</p></li>
+</ul>
+</div>
+<div class="section" id="plugin-implementations">
+<h1><a class="toc-backref" href="#id4">Plugin Implementations</a></h1>
+<p>Lock manager implementations are provided as LGPLv2+ licensed, dlopen()able
+library modules. The plugins will be loadable from the following location:</p>
+<pre class="literal-block">/usr/{lib,lib64}/libvirt/lock_manager/$NAME.so</pre>
+<p>The lock manager plugin must export a single ELF symbol named
+<span class="docutils literal">virLockDriverImpl</span>, which is a static instance of the <span class="docutils literal">virLockDriver</span>
+struct. The struct is defined in the header file</p>
+<pre class="literal-block">#include &lt;libvirt/plugins/lock_manager.h&gt;</pre>
+<p>All callbacks in the struct must be initialized to non-NULL pointers. The
+semantics of each callback are defined in the API docs embedded in the
+previously mentioned header file</p>
+</div>
+<div class="section" id="qemu-driver-integration">
+<h1><a class="toc-backref" href="#id5">QEMU Driver integration</a></h1>
+<p>With the QEMU driver, the lock plugin will be set in the
+<span class="docutils literal">/etc/libvirt/qemu.conf</span> configuration file by specifying the lock manager
+name.</p>
+<pre class="literal-block">lockManager=&quot;sanlock&quot;</pre>
+<p>By default the lock manager will be a 'no op' implementation for backwards
+compatibility</p>
+</div>
+<div class="section" id="lock-usage-patterns">
+<h1><a class="toc-backref" href="#id6">Lock usage patterns</a></h1>
+<p>The following pseudo code illustrates the common patterns of operations invoked
+on the lock manager plugin callbacks.</p>
+<div class="section" id="lock-acquisition">
+<h2><a class="toc-backref" href="#id7">Lock acquisition</a></h2>
+<p>Initial lock acquisition will be performed from the process that is to own the
+lock. This is typically the QEMU child process, in between the fork+exec
+pairing. When adding further resources on the fly, to an existing object holding
+locks, this will be done from the libvirtd process.</p>
+<pre class="literal-block">virLockManagerParam params[] = {
+  { .type = VIR_LOCK_MANAGER_PARAM_TYPE_UUID,
+    .key = &quot;uuid&quot;,
+  },
+  { .type = VIR_LOCK_MANAGER_PARAM_TYPE_STRING,
+    .key = &quot;name&quot;,
+    .value = { .str = dom-&gt;def-&gt;name },
+  },
+  { .type = VIR_LOCK_MANAGER_PARAM_TYPE_UINT,
+    .key = &quot;id&quot;,
+    .value = { .i = dom-&gt;def-&gt;id },
+  },
+  { .type = VIR_LOCK_MANAGER_PARAM_TYPE_UINT,
+    .key = &quot;pid&quot;,
+    .value = { .i = dom-&gt;pid },
+  },
+  { .type = VIR_LOCK_MANAGER_PARAM_TYPE_CSTRING,
+    .key = &quot;uri&quot;,
+    .value = { .cstr = driver-&gt;uri },
+  },
+};
+mgr = virLockManagerNew(lockPlugin,
+                        VIR_LOCK_MANAGER_TYPE_DOMAIN,
+                        ARRAY_CARDINALITY(params),
+                        params,
+                        0)));
+
+foreach (initial disks)
+    virLockManagerAddResource(mgr,
+                              VIR_LOCK_MANAGER_RESOURCE_TYPE_DISK,
+                              $path, 0, NULL, $flags);
+
+if (virLockManagerAcquire(lock, NULL, 0) &lt; 0);
+  ...abort...</pre>
+</div>
+<div class="section" id="lock-release">
+<h2><a class="toc-backref" href="#id8">Lock release</a></h2>
+<p>The locks are all implicitly released when the process that acquired them exits,
+however, a process may voluntarily give up the lock by running</p>
+<pre class="literal-block">char *state = NULL;
+virLockManagerParam params[] = {
+  { .type = VIR_LOCK_MANAGER_PARAM_TYPE_UUID,
+    .key = &quot;uuid&quot;,
+  },
+  { .type = VIR_LOCK_MANAGER_PARAM_TYPE_STRING,
+    .key = &quot;name&quot;,
+    .value = { .str = dom-&gt;def-&gt;name },
+  },
+  { .type = VIR_LOCK_MANAGER_PARAM_TYPE_UINT,
+    .key = &quot;id&quot;,
+    .value = { .i = dom-&gt;def-&gt;id },
+  },
+  { .type = VIR_LOCK_MANAGER_PARAM_TYPE_UINT,
+    .key = &quot;pid&quot;,
+    .value = { .i = dom-&gt;pid },
+  },
+  { .type = VIR_LOCK_MANAGER_PARAM_TYPE_CSTRING,
+    .key = &quot;uri&quot;,
+    .value = { .cstr = driver-&gt;uri },
+  },
+};
+mgr = virLockManagerNew(lockPlugin,
+                        VIR_LOCK_MANAGER_TYPE_DOMAIN,
+                        ARRAY_CARDINALITY(params),
+                        params,
+                        0)));
+
+foreach (initial disks)
+    virLockManagerAddResource(mgr,
+                              VIR_LOCK_MANAGER_RESOURCE_TYPE_DISK,
+                              $path, 0, NULL, $flags);
+
+virLockManagerRelease(mgr, &amp; state, 0);</pre>
+<p>The returned state string can be passed to the <span class="docutils literal">virLockManagerAcquire</span> method
+to later re-acquire the exact same locks. This state transfer is commonly used
+when performing live migration of virtual machines. By validating the state the
+lock manager can ensure no other VM has re-acquire the same locks on a different
+host. The state can also be obtained without releasing the locks, by calling the
+<span class="docutils literal">virLockManagerInquire</span> method.</p>
+</div>
+</div>
+</div>
+</body>
+</html>

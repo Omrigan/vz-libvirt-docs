@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="generator" content="Docutils 0.16: http://docutils.sourceforge.net/" />
+<title>virt-admin</title>
+
+</head>
+<body>
+<div class="document" id="virt-admin">
+<h1 class="title">virt-admin</h1>
+<p class="subtitle" id="daemon-administration-interface">daemon administration interface</p>
+<dl class="docinfo simple">
+<dt class="manual-section">Manual section</dt>
+<dd class="manual-section"><p>1</p>
+</dd>
+<dt class="manual-group">Manual group</dt>
+<dd class="manual-group"><p>Virtualization Support</p>
+</dd>
+</dl>
+<div class="contents topic" id="contents">
+<p class="topic-title">Contents</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#synopsis" id="id1">SYNOPSIS</a></p></li>
+<li><p><a class="reference internal" href="#description" id="id2">DESCRIPTION</a></p></li>
+<li><p><a class="reference internal" href="#notes" id="id3">NOTES</a></p></li>
+<li><p><a class="reference internal" href="#generic-commands" id="id4">GENERIC COMMANDS</a></p>
+<ul>
+<li><p><a class="reference internal" href="#help" id="id5">help</a></p></li>
+<li><p><a class="reference internal" href="#quit-exit" id="id6">quit, exit</a></p></li>
+<li><p><a class="reference internal" href="#version" id="id7">version</a></p></li>
+<li><p><a class="reference internal" href="#cd" id="id8">cd</a></p></li>
+<li><p><a class="reference internal" href="#pwd" id="id9">pwd</a></p></li>
+<li><p><a class="reference internal" href="#connect" id="id10">connect</a></p></li>
+<li><p><a class="reference internal" href="#uri" id="id11">uri</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#daemon-commands" id="id12">DAEMON COMMANDS</a></p>
+<ul>
+<li><p><a class="reference internal" href="#server-list" id="id13">server-list</a></p></li>
+<li><p><a class="reference internal" href="#daemon-log-filters" id="id14">daemon-log-filters</a></p></li>
+<li><p><a class="reference internal" href="#daemon-log-outouts" id="id15">daemon-log-outouts</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#server-commands" id="id16">SERVER COMMANDS</a></p>
+<ul>
+<li><p><a class="reference internal" href="#server-threadpool-info" id="id17">server-threadpool-info</a></p></li>
+<li><p><a class="reference internal" href="#server-threadpool-set" id="id18">server-threadpool-set</a></p></li>
+<li><p><a class="reference internal" href="#server-clients-info" id="id19">server-clients-info</a></p></li>
+<li><p><a class="reference internal" href="#server-clients-set" id="id20">server-clients-set</a></p></li>
+<li><p><a class="reference internal" href="#server-update-tls" id="id21">server-update-tls</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#client-commands" id="id22">CLIENT COMMANDS</a></p>
+<ul>
+<li><p><a class="reference internal" href="#client-list" id="id23">client-list</a></p></li>
+<li><p><a class="reference internal" href="#client-info" id="id24">client-info</a></p></li>
+<li><p><a class="reference internal" href="#client-disconnect" id="id25">client-disconnect</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#environment" id="id26">ENVIRONMENT</a></p></li>
+<li><p><a class="reference internal" href="#authors" id="id27">AUTHORS</a></p></li>
+<li><p><a class="reference internal" href="#bugs" id="id28">BUGS</a></p></li>
+<li><p><a class="reference internal" href="#copyright" id="id29">COPYRIGHT</a></p></li>
+<li><p><a class="reference internal" href="#license" id="id30">LICENSE</a></p></li>
+<li><p><a class="reference internal" href="#see-also" id="id31">SEE ALSO</a></p></li>
+</ul>
+</div>
+<div class="section" id="synopsis">
+<h1><a class="toc-backref" href="#id1">SYNOPSIS</a></h1>
+<p><span class="docutils literal"><span class="pre">virt-admin</span></span> [<em>OPTION</em>]... [<em>COMMAND_STRING</em>]</p>
+<p><span class="docutils literal"><span class="pre">virt-admin</span></span> [<em>OPTION</em>]... <em>COMMAND</em> [<em>ARG</em>]...</p>
+</div>
+<div class="section" id="description">
+<h1><a class="toc-backref" href="#id2">DESCRIPTION</a></h1>
+<p>The <span class="docutils literal"><span class="pre">virt-admin</span></span> program is the main administration interface for modifying
+the libvirt daemon configuration at runtime, changing daemon behaviour as well
+as for monitoring and managing all clients connected to the daemon.</p>
+<p>The basic structure of most virt-admin usage is:</p>
+<pre class="literal-block">virt-admin [OPTION]... &lt;command&gt; [ARG]...</pre>
+<p>Where <em>command</em> is one of the commands listed below. Any <em>command</em>
+starting with <span class="docutils literal">#</span> is treated as a comment and silently ignored, all
+other unrecognized <em>commands</em> are diagnosed.</p>
+<p>The <span class="docutils literal"><span class="pre">virt-admin</span></span> program can be used either to run one <em>COMMAND</em> by giving the
+command and its arguments on the shell command line, or a <em>COMMAND_STRING</em>
+which is a single shell argument consisting of multiple <em>COMMAND</em> actions
+and their arguments joined with whitespace and separated by semicolons or
+newlines between commands, where unquoted backslash-newline pairs are
+elided.  Within <em>COMMAND_STRING</em>, virt-admin understands the
+same single, double, and backslash escapes as the shell, although you must
+add another layer of shell escaping in creating the single shell argument,
+and any word starting with unquoted <em>#</em> begins a comment that ends at newline.
+If no command is given in the command line, <span class="docutils literal"><span class="pre">virt-admin</span></span> will then start a minimal
+interpreter waiting for your commands, and the <span class="docutils literal">quit</span> command will then exit
+the program.</p>
+<p>The <span class="docutils literal"><span class="pre">virt-admin</span></span> program understands the following <em>OPTIONS</em>.</p>
+<p><span class="docutils literal"><span class="pre">-c</span></span>, <span class="docutils literal"><span class="pre">--connect</span></span> <em>URI</em></p>
+<p>Connect to the specified <em>URI</em>, as if by the <span class="docutils literal">connect</span> command,
+instead of the default connection. See <a class="reference internal" href="#notes">NOTES</a>.</p>
+<p><span class="docutils literal"><span class="pre">-d</span></span>, <span class="docutils literal"><span class="pre">--debug</span></span> <em>LEVEL</em></p>
+<p>Enable debug messages at integer <em>LEVEL</em> and above.  <em>LEVEL</em> can
+range from 0 to 4 (default).  See the documentation of <span class="docutils literal">VIRT_ADMIN_DEBUG</span>
+environment variable below for the description of each <em>LEVEL</em>.</p>
+<p><span class="docutils literal"><span class="pre">-h</span></span>, <span class="docutils literal"><span class="pre">--help</span></span></p>
+<p>Ignore all other arguments, and behave as if the <span class="docutils literal">help</span> command were
+given instead.</p>
+<p><span class="docutils literal"><span class="pre">-l</span></span>, <span class="docutils literal"><span class="pre">--log</span></span> <em>FILE</em></p>
+<p>Output logging details to <em>FILE</em>.</p>
+<p><span class="docutils literal"><span class="pre">-q</span></span>, <span class="docutils literal"><span class="pre">--quiet</span></span></p>
+<p>Avoid extra informational messages.</p>
+<p><span class="docutils literal"><span class="pre">-v</span></span>, <span class="docutils literal"><span class="pre">--version[=short]</span></span></p>
+<p>Ignore all other arguments, and prints the version of the libvirt library
+virt-admin is coming from</p>
+<p><span class="docutils literal"><span class="pre">-V</span></span>, <span class="docutils literal"><span class="pre">--version=long</span></span></p>
+<p>Ignore all other arguments, and prints the version of the libvirt library
+virt-admin is coming from.</p>
+</div>
+<div class="section" id="notes">
+<h1><a class="toc-backref" href="#id3">NOTES</a></h1>
+<p>The <span class="docutils literal"><span class="pre">virt-admin</span></span> supports both the monolithic <span class="docutils literal">libvirtd</span> daemon and the
+<a class="reference external" href="https://www.libvirt.org/daemons.html#modular-driver-daemons">modular daemons</a>
+whichever is in use by your system. The connection <em>URI</em> used with
+<span class="docutils literal"><span class="pre">-c/--connect</span></span> or the <a class="reference internal" href="#connect">connect</a> command is based on the name of the
+controlled daemon e.g.: <span class="docutils literal"><span class="pre">virtqemud:///system</span></span>, <span class="docutils literal"><span class="pre">libvirtd:///system</span></span>.</p>
+<p>Running <span class="docutils literal"><span class="pre">virt-admin</span></span> requires root privileges when communicating with the
+system instance of a daemon (<em>URI</em> ending in <span class="docutils literal">/system</span>) due to the
+communications channels used to talk to the daemon.</p>
+</div>
+<div class="section" id="generic-commands">
+<h1><a class="toc-backref" href="#id4">GENERIC COMMANDS</a></h1>
+<p>The following commands are generic.</p>
+<div class="section" id="help">
+<h2><a class="toc-backref" href="#id5">help</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">help [command-or-group]</pre>
+<p>This lists each of the virt-admin commands.  When used without options, all
+commands are listed, one per line, grouped into related categories,
+displaying the keyword for each group.</p>
+<p>To display detailed information for a specific command, use its name as the
+option.</p>
+</div>
+<div class="section" id="quit-exit">
+<h2><a class="toc-backref" href="#id6">quit, exit</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">quit
+exit</pre>
+<p>quit this interactive terminal</p>
+</div>
+<div class="section" id="version">
+<h2><a class="toc-backref" href="#id7">version</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">version</pre>
+<p>will print out the version info about which libvirt library was this client
+built from. As opposed to <em>virsh</em> client, the output already includes
+the version of the daemon.</p>
+<p><strong>Example:</strong></p>
+<pre class="literal-block">$ virt-admin version
+Compiled against library: libvirt 1.2.21
+Using library: libvirt 1.2.21
+Running against daemon: 1.2.20</pre>
+</div>
+<div class="section" id="cd">
+<h2><a class="toc-backref" href="#id8">cd</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">cd [directory]</pre>
+<p>Will change current directory to <em>directory</em>.  The default directory
+for the <span class="docutils literal">cd</span> command is the home directory or, if there is no <em>HOME</em>
+variable in the environment, the root directory.</p>
+<p>This command is only available in interactive mode.</p>
+</div>
+<div class="section" id="pwd">
+<h2><a class="toc-backref" href="#id9">pwd</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">pwd</pre>
+<p>Will print the current directory.</p>
+</div>
+<div class="section" id="connect">
+<h2><a class="toc-backref" href="#id10">connect</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">connect [URI]</pre>
+<p>(Re)-Connect to a daemon's administrating server. The <em>URI</em> parameter
+specifies how to connect to the administrating server.
+If <em>LIBVIRT_ADMIN_DEFAULT_URI</em> or <em>uri_default</em> (see below) were set,
+<em>connect</em> is automatically issued every time a command that requires an
+active connection is executed. Note that this only applies if there is no
+connection at all or there is an inactive one.</p>
+<p>See <a class="reference internal" href="#notes">NOTES</a> on picking the correct <em>URI</em> corresponding to a libvirt daemon.</p>
+<p>To find the currently used URI, check the <em>uri</em> command documented below.</p>
+</div>
+<div class="section" id="uri">
+<h2><a class="toc-backref" href="#id11">uri</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">uri</pre>
+<p>Prints the administrating server canonical URI, can be useful in shell mode. If
+no <em>uri</em> was specified, neither <em>LIBVIRT_ADMIN_DEFAULT_URI</em> environment
+variable nor <em>uri_default</em> option (libvirt-admin.conf) were set,
+libvirtd:///system is used.</p>
+</div>
+</div>
+<div class="section" id="daemon-commands">
+<h1><a class="toc-backref" href="#id12">DAEMON COMMANDS</a></h1>
+<p>The following commands allow one to monitor the daemon's state as well as
+directly change its internal configuration.</p>
+<div class="section" id="server-list">
+<h2><a class="toc-backref" href="#id13">server-list</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">server-list</pre>
+<p>Lists all manageable servers contained within the daemon the client is
+currently connected to.</p>
+</div>
+<div class="section" id="daemon-log-filters">
+<h2><a class="toc-backref" href="#id14">daemon-log-filters</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">daemon-log-filters [--filters string]</pre>
+<p>When run without arguments, this returns the currently defined set of logging
+filters. Providing an argument will cause the command to define a new set of
+logging filters.</p>
+<ul class="simple">
+<li><p><em>--filters</em></p></li>
+</ul>
+<p>Define a new set of logging filters where multiple filters are delimited by
+space. Each filter must conform to the form described in detail by
+<em>/etc/libvirt/libvirtd.conf</em> (section 'Logging filters').</p>
+<p><strong>Example:</strong></p>
+<p>To define a filter which suppresses all e.g. 'virObjectUnref' DEBUG
+messages, use the following:</p>
+<pre class="literal-block">$ virt-admin daemon-log-filters &quot;4:util.object&quot;</pre>
+<p>(Note the '.' symbol which can be used to more fine-grained filters tailored
+to specific modules, in contrast, to affect the whole directory containing
+several modules this would become &quot;4:util&quot;):</p>
+</div>
+<div class="section" id="daemon-log-outouts">
+<h2><a class="toc-backref" href="#id15">daemon-log-outouts</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">daemon-log-outputs [--outputs string]</pre>
+<p>When run without arguments, this returns the currently defined set of logging
+outputs. Providing an argument will cause the command to define a new set of
+logging outputs.</p>
+<ul class="simple">
+<li><p><em>--outputs</em></p></li>
+</ul>
+<p>Define a new set of logging outputs where multiple outputs are delimited by
+space. Each output must conform to the form described in detail by
+<em>/etc/libvirt/libvirtd.conf</em> (section 'Logging outputs').</p>
+<p><strong>Example:</strong></p>
+<p>To replace the current setting for logging outputs with one that writes to
+a file while logging errors only, the following could be used:</p>
+<pre class="literal-block">$ virt-admin daemon-log-outputs &quot;4:file:&lt;absolute_path_to_the_file&gt;&quot;</pre>
+<p>To define multiple outputs at once they need to be delimited by spaces:</p>
+<pre class="literal-block">$ virt-admin daemon-log-outputs &quot;4:stderr 2:syslog:&lt;msg_ident&gt;&quot;</pre>
+</div>
+</div>
+<div class="section" id="server-commands">
+<h1><a class="toc-backref" href="#id16">SERVER COMMANDS</a></h1>
+<p>The following commands manipulate daemon's server internal configuration.
+The <em>server</em> is specified by its name.</p>
+<div class="section" id="server-threadpool-info">
+<h2><a class="toc-backref" href="#id17">server-threadpool-info</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">server-threadpool-info server</pre>
+<p>Retrieve server's threadpool attributes. These attributes include:</p>
+<ul class="simple">
+<li><p><em>minWorkers</em> as the bottom limit to the number of active workers,</p></li>
+<li><p><em>maxWorkers</em> as the top limit to the number of active workers,</p></li>
+<li><p><em>nWorkers</em> as the current number of workers in the threadpool,</p></li>
+<li><p><em>freeWorkers</em> as the current number of workers available for a task,</p></li>
+<li><p><em>prioWorkers</em> as the current number of priority workers in the threadpool, and</p></li>
+<li><p><em>jobQueueDepth</em> as the current depth of threadpool's job queue.</p></li>
+</ul>
+<p><strong>Background</strong></p>
+<p>Each daemon server utilizes a threadpool to accomplish tasks requested by
+clients connected to it. Every time a client request arrives to the server,
+it checks whether there is a worker available to accomplish the given task or
+it should create a new worker for the job (rather than being destroyed, the
+worker becomes free once the task is finished). Creating new workers, however,
+is only possible when the current number of workers is still below the
+configured upper limit.
+In addition to these 'standard' workers, a threadpool also contains a special
+set of workers called <em>priority</em> workers. Their purpose is to perform tasks
+that, unlike tasks carried out by normal workers, are within libvirt's full
+control and libvirt guarantees that such a task cannot hang, thus will always
+finish. An example of such a task this would be destroying a domain:</p>
+<pre class="literal-block">$ virsh destroy &lt;domain&gt;.</pre>
+</div>
+<div class="section" id="server-threadpool-set">
+<h2><a class="toc-backref" href="#id18">server-threadpool-set</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">server-threadpool-set server [--min-workers count] [--max-workers count] [--priority-workers count]</pre>
+<p>Change threadpool attributes on a server. Only a fraction of all attributes as
+described in <em>server-threadpool-info</em> is supported for the setter.</p>
+<ul>
+<li><p><em>--min-workers</em></p>
+<p>The bottom limit to number of active workers in a threadpool.</p>
+</li>
+<li><p><em>--max-workers</em></p>
+<p>The upper limit to number of active workers in a threadpool. If used in
+combination with option <em>--min-workers</em>, the value for the upper limit has to
+be greater than the value for the bottom limit, otherwise the command results
+in an error.</p>
+</li>
+<li><p><em>--priority-workers</em></p>
+<p>The current number of active priority workers in a threadpool.</p>
+</li>
+</ul>
+</div>
+<div class="section" id="server-clients-info">
+<h2><a class="toc-backref" href="#id19">server-clients-info</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">server-clients-info server</pre>
+<p>Get information about the current setting of limits regarding connections of new
+clients. This information comprises of the limits to the maximum number of
+clients connected to <em>server</em>, maximum number of clients waiting for
+authentication, in order to be connected to the server, as well as the current
+runtime values, more specifically, the current number of clients connected to
+<em>server</em> and the current number of clients waiting for authentication.</p>
+<p><strong>Example:</strong></p>
+<pre class="literal-block"># virt-admin server-clients-info libvirtd
+nclients_max        : 120
+nclients            : 3
+nclients_unauth_max : 20
+nclients_unauth     : 0</pre>
+</div>
+<div class="section" id="server-clients-set">
+<h2><a class="toc-backref" href="#id20">server-clients-set</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">server-clients-set server [--max-clients count] [--max-unauth-clients count]</pre>
+<p>Set new client-related limits on <em>server</em>.</p>
+<ul>
+<li><p><em>--max-clients</em></p>
+<p>Change the upper limit of the maximum overall number of clients connected to
+<em>server</em> to value <span class="docutils literal">count</span>. The value for this limit has to be always greater
+than the value of <em>--max-unauth-clients</em>.</p>
+</li>
+<li><p><em>--max-unauth-clients</em></p>
+<p>Change the upper limit of the maximum number of clients waiting for
+authentication, in order to be connected to <em>server</em>, to value <span class="docutils literal">count</span>.
+The value for this limit has to be always lower than the value of
+<em>--max-clients</em>.</p>
+</li>
+</ul>
+</div>
+<div class="section" id="server-update-tls">
+<h2><a class="toc-backref" href="#id21">server-update-tls</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">server-update-tls server</pre>
+<p>Update tls context on <em>server</em>.</p>
+<ul>
+<li><p><em>server</em></p>
+<p>Available servers on a daemon. Currently only supports 'libvirtd' or
+'virtproxyd'.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="section" id="client-commands">
+<h1><a class="toc-backref" href="#id22">CLIENT COMMANDS</a></h1>
+<p>The following commands provide management and monitoring of clients connected to
+one of daemon's available servers. Clients are specified by their numeric ID
+which is obtained by listing all clients connected to a specified server
+(see command <span class="docutils literal"><span class="pre">client-list</span></span>).</p>
+<div class="section" id="client-list">
+<h2><a class="toc-backref" href="#id23">client-list</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">client-list server</pre>
+<p>Print a table showing the list of clients connected to &lt;server&gt;, also providing
+information about transport type used on client's connection (supported
+transports include <span class="docutils literal">unix</span>, <span class="docutils literal">tcp</span>, and <span class="docutils literal">tls</span>), as well as providing
+information about client's connection time (system local time is used).</p>
+</div>
+<div class="section" id="client-info">
+<h2><a class="toc-backref" href="#id24">client-info</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">client-info server client</pre>
+<p>Retrieve identity information about <em>client</em> from <em>server</em>. The attributes
+returned may vary depending on the connection transport used.
+Transport-dependent attributes include local client process's pid, uid,
+user name, and group name, as well as socket address of the remote peer, see
+<span class="docutils literal">Examples</span> below.</p>
+<p>On the other hand, transport-independent attributes include client's SELinux
+context (if enabled on the host) and SASL username (if SASL authentication is
+enabled within daemon).</p>
+<p><strong>Examples:</strong></p>
+<pre class="literal-block"># virt-admin client-info libvirtd 1
+id             : 1
+connection_time: 2016-05-03 13:27:04+0200
+transport      : unix
+readonly       : yes
+unix_user_id   : 0
+unix_user_name : root
+unix_group_id  : 0
+unix_group_name: root
+unix_process_id: 10201
+
+# virt-admin client-info libvirtd 2
+id             : 2
+connection_time: 2016-05-03 13:30:33+0200
+transport      : tcp
+readonly       : no
+sock_addr      : 127.0.0.1:57060</pre>
+</div>
+<div class="section" id="client-disconnect">
+<h2><a class="toc-backref" href="#id25">client-disconnect</a></h2>
+<p><strong>Syntax:</strong></p>
+<pre class="literal-block">client-disconnect server client</pre>
+<p>Close a connection originating from <em>client</em>. The <em>server</em> argument
+specifies the name of the server <em>client</em> is currently connected to.</p>
+</div>
+</div>
+<div class="section" id="environment">
+<h1><a class="toc-backref" href="#id26">ENVIRONMENT</a></h1>
+<p>The following environment variables can be set to alter the behaviour
+of <span class="docutils literal"><span class="pre">virt-admin</span></span></p>
+<ul>
+<li><p>VIRT_ADMIN_DEBUG=&lt;0 to 4&gt;</p>
+<p>Turn on verbose debugging of virt-admin commands. Valid levels are</p>
+<ul>
+<li><p>VIRT_ADMIN_DEBUG=0</p>
+<p>DEBUG - Messages at ALL levels get logged</p>
+</li>
+<li><p>VIRT_ADMIN_DEBUG=1</p>
+<p>INFO - Logs messages at levels INFO, NOTICE, WARNING and ERROR</p>
+</li>
+<li><p>VIRT_ADMIN_DEBUG=2</p>
+<p>NOTICE - Logs messages at levels NOTICE, WARNING and ERROR</p>
+</li>
+<li><p>VIRT_ADMIN_DEBUG=3</p>
+<p>WARNING - Logs messages at levels WARNING and ERROR</p>
+</li>
+<li><p>VIRT_ADMIN_DEBUG=4</p>
+<p>ERROR - Messages at only ERROR level gets logged.</p>
+</li>
+</ul>
+</li>
+<li><p>VIRT_ADMIN_LOG_FILE=``LOGFILE``</p>
+<p>The file to log virt-admin debug messages.</p>
+</li>
+<li><p>LIBVIRT_ADMIN_DEFAULT_URI</p>
+<p>The daemon whose admin server to connect to by default. Set this to a URI, in
+the same format as accepted by the <span class="docutils literal">connect</span> option. This overrides the
+default URI set in any client config file.</p>
+</li>
+<li><p>VIRT_ADMIN_HISTSIZE</p>
+<p>The number of commands to remember in the command  history.  The
+default value is 500.</p>
+</li>
+<li><p>LIBVIRT_DEBUG=LEVEL</p>
+<p>Turn on verbose debugging of all libvirt API calls. Valid levels are</p>
+<ul>
+<li><p>LIBVIRT_DEBUG=1</p>
+<p>Messages at level DEBUG or above</p>
+</li>
+<li><p>LIBVIRT_DEBUG=2</p>
+<p>Messages at level INFO or above</p>
+</li>
+<li><p>LIBVIRT_DEBUG=3</p>
+<p>Messages at level WARNING or above</p>
+</li>
+<li><p>LIBVIRT_DEBUG=4</p>
+<p>Messages at level ERROR or above</p>
+</li>
+</ul>
+</li>
+</ul>
+<p>For further information about debugging options consult
+<a class="reference external" href="https://libvirt.org/logging.html">https://libvirt.org/logging.html</a></p>
+</div>
+<div class="section" id="authors">
+<h1><a class="toc-backref" href="#id27">AUTHORS</a></h1>
+<p>Please refer to the AUTHORS file distributed with libvirt.</p>
+</div>
+<div class="section" id="bugs">
+<h1><a class="toc-backref" href="#id28">BUGS</a></h1>
+<p>Please report all bugs you discover.  This should be done via either:</p>
+<ol class="arabic">
+<li><p>the mailing list</p>
+<p><a class="reference external" href="https://libvirt.org/contact.html">https://libvirt.org/contact.html</a></p>
+</li>
+<li><p>the bug tracker</p>
+<p><a class="reference external" href="https://libvirt.org/bugs.html">https://libvirt.org/bugs.html</a></p>
+</li>
+</ol>
+<p>Alternatively, you may report bugs to your software distributor / vendor.</p>
+</div>
+<div class="section" id="copyright">
+<h1><a class="toc-backref" href="#id29">COPYRIGHT</a></h1>
+<p>Copyright (C) 2015 Red Hat, Inc., and the authors listed in the
+libvirt AUTHORS file.</p>
+</div>
+<div class="section" id="license">
+<h1><a class="toc-backref" href="#id30">LICENSE</a></h1>
+<p><span class="docutils literal"><span class="pre">virt-admin</span></span> is distributed under the terms of the GNU LGPL v2+.
+This is free software; see the source for copying conditions. There
+is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR
+PURPOSE</p>
+</div>
+<div class="section" id="see-also">
+<h1><a class="toc-backref" href="#id31">SEE ALSO</a></h1>
+<p>virsh(1), virt-xml-validate(1), virt-host-validate(1),
+<a class="reference external" href="https://libvirt.org/">https://libvirt.org/</a></p>
+</div>
+</div>
+</body>
+</html>
